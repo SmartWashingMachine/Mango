@@ -15,4 +15,4 @@ from gandy.app import run_server
 
 run_server()
 
-#it works?1 but how do we put it in...
+# TODO: Better importing. Eventlet is wonky with Pyinstaller.
