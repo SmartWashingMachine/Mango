@@ -384,7 +384,7 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
             # Helps with computation time with beam search.
             early_stopping=True,
             # Modifies the higher order structure. Helps prevent repeating sentences. May not actually be needed anymore, since the model appears to be decently tuned.
-            no_repeat_ngram_size=6,
+            no_repeat_ngram_size=7,
             # Following the "Diverse Beam Search" paper, we set the number of groups to the number of beams.
             # This will attempt to encourage each beam to have diverse outcomes, by accounting for similarity of the beam groups at each step.
             # num_beam_groups=5 if force_word_ids is None else 1,
