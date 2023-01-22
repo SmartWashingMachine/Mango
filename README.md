@@ -106,7 +106,7 @@ All output files (translated books, saved backlog text files, and translated ima
 
 # Thanks to...
 
-[Helsinki NLP](https://huggingface.co/Helsinki-NLP) - For their awesome tools, datasets, and models that they've made publicly available. Mainly used [OpenSubtitles](https://opus.nlpl.eu/OpenSubtitles.php)
+[Helsinki NLP](https://huggingface.co/Helsinki-NLP) - For their awesome tools, datasets, and models that they've made publicly available. Mainly used [OpenSubtitles](http://www.opensubtitles.org/)
 
 [Transformers](https://github.com/huggingface/transformers) - Borrowed a lot of their code for generation logic.
 
