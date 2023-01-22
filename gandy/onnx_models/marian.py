@@ -99,9 +99,12 @@ class MarianONNX(BaseONNXModel):
         x_dict['text'] = inp_text
         return x_dict
 
-    def begin_forward(self, x_dict, force_words = None):
+    def begin_forward(self, x_dict, force_words = None, tgt_context_memory = None):
         if force_words:
             logger.info('force_words is not supported for MT with baked in beam search... yet. Ignoring.')
+
+        if tgt_context_memory is not None:
+            logger.info('tgt_context_memory is not supported for MT with baked in beam search... yet. Ignoring.')
 
         start = datetime.now()
         outp = self.ort_sess.run(

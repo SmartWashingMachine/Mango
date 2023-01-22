@@ -349,7 +349,7 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
         x_dict['text'] = inp_text
         return x_dict
 
-    def begin_forward(self, x_dict, force_words = None):
+    def begin_forward(self, x_dict, force_words = None, tgt_context_memory = None):
         did_fail = False
         if force_words:
             force_word_ids = []
@@ -373,10 +373,17 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
         if did_fail or not force_words:
             force_word_ids = None
 
+        if tgt_context_memory is not None:
+            # We use :-1 to slice off the last token, which is the EOS token.
+            decoder_input_ids = self.tokenizer(['Good morning <SEP1>'], return_tensors='np').input_ids[:, :-1]
+        else:
+            decoder_input_ids = None
+
         start = datetime.now()
         outp = self.generate(
             input_ids=x_dict['input_ids'],
             attention_mask=x_dict['attention_mask'],
+            decoder_input_ids=decoder_input_ids,
             num_beams=5,
             max_length=512 if self.max_length_a == 0 else (x_dict['input_ids'].shape[1] * self.max_length_a),
             # Awful awful. Just no. Why? Why? Don't enable this.
@@ -397,6 +404,9 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
         end = datetime.now()
         logger.debug(f'Translating item time elapsed: {(end - start).total_seconds()}s')
         logger.debug(f'For text: {x_dict["text"]}')
+
+        if tgt_context_memory is not None:
+            logger.debug(f'With context memory: {tgt_context_memory}')
 
         return outp
 

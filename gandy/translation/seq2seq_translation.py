@@ -79,7 +79,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
             'text': clean_text(input_text),
         }
 
-    def process(self, i_frames = None, text = None, force_words = None):
+    def process(self, i_frames = None, text = None, force_words = None, tgt_context_memory = None):
         """
         force_words, if given, should be a list containing strings and/or sublists of strings.
 
@@ -96,6 +96,9 @@ class Seq2SeqTranslationApp(BaseTranslation):
         final_input = []
 
         if i_frames is not None:
+            if tgt_context_memory is not None:
+                logger.debug('tgt_context_memory was provided as an argument while translating iframes that are likely from images. Ignoring tgt_context_memory.')
+
             for i_frame in i_frames:
                 if self.concat_mode == '2plus2':
                     inp = i_frame.get_2plus2_input(with_separator=True)
@@ -123,7 +126,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
             logger.debug('Translating given a string of text...')
             final_input.append(text)
 
-            predictions = self.translation_model.full_pipe(self.map_input(text), force_words=force_words)
+            predictions = self.translation_model.full_pipe(self.map_input(text), force_words=force_words, tgt_context_memory=tgt_context_memory)
 
             logger.debug('Done translating a text item!')
             output.append([predictions])

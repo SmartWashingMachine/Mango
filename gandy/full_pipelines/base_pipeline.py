@@ -185,7 +185,7 @@ class BasePipeline():
 
         return rgb_image, is_amg
 
-    def process_task2(self, text, translation_force_words = None, socketio=None):
+    def process_task2(self, text, translation_force_words = None, tgt_context_memory = None, socketio=None):
         self.in_app(socketio, 'task2')
 
         self.pre_app('translation')
@@ -207,12 +207,15 @@ class BasePipeline():
 
             # Then combine each output into one string.
             translation_output = [''.join(translation_output)]
+
+            # Don't really have a good solution for reusing context memory with extremely long text yet, so just set it to None if it is not already.
+            tgt_context_memory = None
         else:
             # Modify user terms on the source side.
             # Here, text is a str but replace_terms takes in a list.
             text = replace_terms([text], self.terms, on_side='source')[0]
 
-            translation_input, translation_output = self.translation_app.begin_process(i_frames=None, text=text, force_words=translation_force_words)
+            translation_input, translation_output = self.translation_app.begin_process(i_frames=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
         self.post_app(socketio, 'task2')
 
         self.pre_app('spell_correction')

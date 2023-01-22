@@ -6,9 +6,9 @@ from gandy.task3_routes import context_state
 
 logger = logging.getLogger('Gandy')
 
-# Task2 - translate text into text (from the OCR box or the text field input).
+# Task2 - translate text into text (from the OCR box or the text field input or e-books).
 
-def translate_task2_background_job(text, force_words, box_id = None):
+def translate_task2_background_job(text, force_words, box_id = None, tgt_context_memory = None):
     output = {
         'text': '',
         'sourceText': text,
@@ -29,7 +29,10 @@ def translate_task2_background_job(text, force_words, box_id = None):
     try:
         socketio.emit('progress_task2', 0.05, include_self=True)
 
-        new_text = translate_pipeline.process_task2(text, translation_force_words=force_words, socketio=socketio)
+        # tgt_context_memory, if provided, should be the string consisting of the target-side translations of the contextual sentences.
+        # e.g: if our input text is like "Asource <SEP1> Bsource <SEP2> Csource", tgt_context_memory should be "Atarget <SEP1> Btarget <SEP2>" (Ctarget can't be provided as that is the target we wish to predict.)
+        # This can speed up decoding for long lists of text since it doesn't have to translate the contextual sentences again and again, but can affect model accuracy.
+        new_text = translate_pipeline.process_task2(text, translation_force_words=force_words, socketio=socketio, tgt_context_memory=tgt_context_memory)
         output['text'] = new_text
 
         socketio.emit('done_translating_task2', output, include_self=True)

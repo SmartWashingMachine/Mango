@@ -22,8 +22,8 @@ class Seq2SeqLiteTranslationApp(Seq2SeqTranslationApp):
     def strip_non(self, text: str):
         return text.replace('<NON>', '').strip()
 
-    def process(self, i_frames=None, text=None, force_words=None):
-        final_input, output = super().process(i_frames, text, force_words)
+    def process(self, i_frames=None, text=None, force_words=None, tgt_context_memory=None):
+        final_input, output = super().process(i_frames, text, force_words, tgt_context_memory=tgt_context_memory)
 
         final_output = []
         for o in output:
