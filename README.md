@@ -13,7 +13,7 @@
 
 ![Text Page](images/mango-preview-text.jpg)
 
-**Mango** is a fully automated tool to machine translate text, manga, games, and ebooks. It comes with a bunch of models tuned in house as well as a basic UI to easily use them.
+**Mango-Mandy+Gandy** is a fully automated tool to machine translate text, manga, games, and ebooks. It comes with a bunch of models tuned in house as well as a basic UI to easily use them.
 
 :warning: CURRENTLY IN ALPHA - Expect a bunch of bugs and just general unwieldiness. :warning:
 
