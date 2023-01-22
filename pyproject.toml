@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "Gandy"
+version = "0.1.0"
+description = ""
+authors = ["Recycled Octopus <octopusthrowaway1191@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.10"
+Flask = "^2.0.2"
+opencv-python = "^4.5.5"
+pytesseract = "^0.3.8"
+numpy = "^1.22.2"
+Pillow = "^9.0.1"
+torch = "^1.10.2"
+torchvision = "^0.11.3"
+pytorch-lightning = "^1.5.10"
+matplotlib = "^3.5.1"
+chainer = "^7.8.1"
+transformers = "^4.22.1"
+sentencepiece = "^0.1.96"
+albumentations = "^1.1.0"
+pandas = "^1.4.1"
+nlprule = "^0.6.4"
+numba = "0.53.0rc1.post1"
+ensemble-boxes = "^1.0.8"
+fugashi = {extras = ["unidic-lite"], version = "^1.1.2"}
+Flask-SocketIO = "^5.2.0"
+eventlet = "^0.33.1"
+Wand = "^0.6.7"
+annoy = "^1.17.1"
+pyinstaller = "^5.3"
+beautifulsoup4 = "^4.11.1"
+EbookLib = "^0.17.1"
+ipykernel = "^6.16.0"
+dnspython = "^2.2.1"
+tqdm = "^4.64.1"
+onnxruntime-directml = "^1.13.1"
+joblib = "^1.2.0"
+scikit-learn = "^1.2.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
