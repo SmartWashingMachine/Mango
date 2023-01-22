@@ -40,7 +40,7 @@ Lastly, all of these models were trained or tuned by me, and I'll probably conti
 # How do I install this?
 
 1. Install ImageMagick.
-2. Download the prebuilt Mango application here.
+2. Download the prebuilt Mango application [here](https://github.com/SmartWashingMachine/Gandy/releases/).
 3. Download the "Jap2Eng Starter" model pack [here](https://drive.google.com/file/d/1F_-YTbDAvpjPTazniIgNtQZKcRv4fLYC/view?usp=share_link), and drag the "models" folder to the same folder that Mango.exe is located in. If you want more functionality, download some of the model packs below.
 4. Run mango.exe!
 
