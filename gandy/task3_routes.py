@@ -1,6 +1,7 @@
 from flask import request
 from PIL import Image
 import logging
+from typing import List
 
 from gandy.app import app, translate_pipeline, socketio
 
@@ -13,11 +14,18 @@ logger = logging.getLogger('Gandy')
 class ContextState():
     def __init__(self):
         self.prev_source_text_list = []
+        self.prev_target_text_list = []
 
-    def update_list(self, text):
-        self.prev_source_text_list.append(text.split('<SEP>')[-1].strip())
-        if len(self.prev_source_text_list) > 3:
-            self.prev_source_text_list = self.prev_source_text_list[1:]
+    def update_list(self, text_list: List[str], text: str):
+        text_list.append(text.split('<SEP>')[-1].strip())
+        if len(text_list) > 3:
+            text_list = text_list[1:]
+
+    def update_source_list(self, text: str):
+        self.update_list(self.prev_source_text_list, text)
+
+    def update_target_list(self, text: str):
+        self.update_list(self.prev_target_text_list, text)
 
 context_state = ContextState()
 
