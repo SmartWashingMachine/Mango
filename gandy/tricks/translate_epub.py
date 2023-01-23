@@ -44,7 +44,7 @@ def emit_progress(socketio, j, sentences_len):
     }
     socketio.emit('progress_epub', data, include_self=True)
 
-def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio=None):
+def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio = None, tgt_context_memory = None):
     sent_regex = re.compile(r'([.?!])([a-zA-Z0-9_])')
 
     e_book = epub.read_epub(file_path)
@@ -56,8 +56,9 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
     make_folder(book_checkpoint_folder_path)
 
     context_list = [] # list of previous source texts for context.
+    tgt_context_list = [] # list of previous target texts for context. Only used if tgt_context_memory == -1.
 
-    def _translate_one_sentence(t, context_list):
+    def _translate_one_sentence(t, context_list, tgt_context_list):
         t_o = DataCleaner.replace_many(DataCleaner.strip_html([t]))[0]
 
         if len(context_list) > 0:
@@ -68,12 +69,22 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
         if len(context_list) > 3:
             context_list = context_list[1:]
 
-        translated_text = app_pipeline.process_task2(t, translation_force_words=None, socketio=None)[0]
+        # TODO: Refactor.
+        if tgt_context_memory == -1 and len(tgt_context_list) > 0:
+            with_context = ' <SEP> '.join(tgt_context_list)
+            tgt_context_memory_to_use = f'{with_context} <SEP>'
+        else:
+            tgt_context_memory_to_use = None
 
+        translated_text = app_pipeline.process_task2(t, translation_force_words=None, socketio=None, tgt_context_memory=tgt_context_memory_to_use)[0]
         # Because EPUBs are weird, sometimes the output text will have multiple sentences with poor spacing. Quick hack.
         translated_text = re.sub(sent_regex, r'\1 \2', translated_text)
 
-        return translated_text, context_list
+        tgt_context_list.append(translated_text)
+        if len(tgt_context_list) > 3:
+            tgt_context_list = tgt_context_list[1:]
+
+        return translated_text, context_list, tgt_context_list
 
     # Progress is based on # of sentences - not pages.
     # pages_len = len(list(e_book.get_items()))
@@ -152,7 +163,7 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
 
                 if len(p_text) > 0:
                     # We assume all the text in a HTML paragraph element constitutes a sentence.
-                    new_text, context_list = _translate_one_sentence(p_text, context_list)
+                    new_text, context_list, tgt_context_list = _translate_one_sentence(p_text, context_list, tgt_context_list)
                     p.string = new_text
                     replacement_count += 1
 
@@ -173,7 +184,7 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
                     d_text = d_text.strip()
 
                     if len(d_text) > 0:
-                        new_text, context_list = _translate_one_sentence(d_text, context_list)
+                        new_text, context_list, tgt_context_list = _translate_one_sentence(d_text, context_list, tgt_context_list)
                         d.string = new_text
                         replacement_count += 1
 
@@ -204,4 +215,3 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
         socketio.sleep()
 
     epub.write_epub(f'{book_folder_path}/new_book.epub', e_book)
-
