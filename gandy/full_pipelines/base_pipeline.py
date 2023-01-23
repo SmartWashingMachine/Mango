@@ -227,7 +227,7 @@ class BasePipeline():
 
         return translation_output
 
-    def process_task3(self, image, translation_force_words = None, socketio=None, with_text_detect = False, context_input = None):
+    def process_task3(self, image, translation_force_words = None, socketio = None, with_text_detect = False, context_input = None, tgt_context_memory = None):
         self.in_app(socketio, 'task3')
 
         self.pre_app('frame_detection')
@@ -260,7 +260,7 @@ class BasePipeline():
             i_f.replace_terms(self.terms)
 
         self.pre_app('translation')
-        translation_input, translation_output = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words)
+        translation_input, translation_output = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
         self.post_app(socketio, 'task3')
 
         self.pre_app('spell_correction')
