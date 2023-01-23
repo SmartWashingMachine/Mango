@@ -107,7 +107,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
         only_last_outputs = []
 
         if i_frames is not None:
-            if tgt_context_memory is not None and tgt_context_memory != -1:
+            if tgt_context_memory is not None and tgt_context_memory != '-1':
                 logger.debug('tgt_context_memory was provided as an argument while translating iframes that are likely from images. Ignoring tgt_context_memory since it is not == -1.')
                 tgt_context_memory = None
 

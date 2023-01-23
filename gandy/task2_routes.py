@@ -29,7 +29,7 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
         socketio.sleep()
 
         # If tgt_context_memory is -1, we assume that means that the user wants to use the prior contextual outputs as memory.
-        if tgt_context_memory == -1:
+        if tgt_context_memory == '-1':
             sep_after = context_state.prev_target_text_list + [' <SEP>']
             tgt_context_memory = ' <SEP> '.join(sep_after).strip()
     try:
