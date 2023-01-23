@@ -19,7 +19,7 @@ def encode_image(new_image):
 
     return new_image_base64
 
-def translate_task1_background_job(images, force_words, is_b64 = False, is_zip = False):
+def translate_task1_background_job(images, force_words, is_b64 = False, is_zip = False, tgt_context_memory = None):
     try:
         image_streams = []
         image_names = []
@@ -61,7 +61,7 @@ def translate_task1_background_job(images, force_words, is_b64 = False, is_zip =
             socketio.emit('progress_task1', 0.05)
             socketio.sleep()
 
-            new_image, is_amg = translate_pipeline.process_task1(img, translation_force_words=force_words, socketio=socketio)
+            new_image, is_amg = translate_pipeline.process_task1(img, translation_force_words=force_words, socketio=socketio, tgt_context_memory=tgt_context_memory)
 
             new_img_name = img_name
 
@@ -99,7 +99,10 @@ def process_task1_route():
     data = request.form.to_dict(flat=False)
     force_words = data['required_words'] if 'required_words' in data else None
 
+    # Proper values = None (no memory) | -1
+    tgt_context_memory = data['tgt_context_memory'] if 'tgt_context_memory' in data else None
+
     images = request.files.getlist('file')
-    socketio.start_background_task(translate_task1_background_job, images, force_words)
+    socketio.start_background_task(translate_task1_background_job, images, force_words, tgt_context_memory=tgt_context_memory)
 
     return { 'processing': True }, 202

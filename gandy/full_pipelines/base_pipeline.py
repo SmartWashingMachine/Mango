@@ -134,7 +134,7 @@ class BasePipeline():
 
         return image
 
-    def process_task1(self, image, translation_force_words = None, socketio=None):
+    def process_task1(self, image, translation_force_words = None, socketio = None, tgt_context_memory = None):
         self.in_app(socketio, 'task1')
 
         self.pre_app('frame_detection')
@@ -161,7 +161,8 @@ class BasePipeline():
 
         # Each translation_output will contain the contextual sentences too in the output strings.
         self.pre_app('translation')
-        translation_input, translation_output = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words)
+
+        translation_input, translation_output = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
         self.post_app(socketio, 'task1')
 
         # But the spelling correction apps will take care of removing any contextual sentences from the final output.

@@ -375,7 +375,7 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
 
         if tgt_context_memory is not None:
             # We use :-1 to slice off the last token, which is the EOS token.
-            decoder_input_ids = self.tokenizer(['Good morning <SEP1>'], return_tensors='np').input_ids[:, :-1]
+            decoder_input_ids = self.tokenizer(tgt_context_memory, return_tensors='np').input_ids[:, :-1]
         else:
             decoder_input_ids = None
 

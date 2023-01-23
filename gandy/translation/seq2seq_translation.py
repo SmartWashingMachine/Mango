@@ -2,6 +2,7 @@ from gandy.onnx_models.marian import MarianONNX
 from gandy.translation.base_translation import BaseTranslation
 from typing import List
 import logging
+import re
 from gandy.utils.clean_text import clean_text
 
 logger = logging.getLogger('Gandy')
@@ -16,6 +17,8 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
         self.max_context = -1
         self.max_length_a = 0
+
+        self.sep_splitter = re.compile(r'<SEP>|<SEP1>|<SEP2>|<SEP3>')
 
         super().__init__()
 
@@ -63,7 +66,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
         return new_input_text.strip()
 
-    def map_input(self, input_text):
+    def convert_text(self, input_text):
         split = input_text.split(' <SEP> ')
 
         if len(split) <= self.max_context or self.max_context == -1:
@@ -74,6 +77,10 @@ class Seq2SeqTranslationApp(BaseTranslation):
         # Now we're using P-transformer. As a hacky fix, replace SEPs with SEP1, SEP2, etc...
         input_text = self.p_transformer_join(input_text)
         # If we were not using P-transformer: input_text = ' <SEP> '.join(input_text).strip()
+        return input_text
+
+    def map_input(self, input_text):
+        input_text = self.convert_text(input_text)
 
         return {
             'text': clean_text(input_text),
@@ -95,9 +102,14 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
         final_input = []
 
+        # Only used for tgt_context_memory, if set to -1 and translating images.
+        # It's a list like outputs, but whereas each string in outputs contains contextual sentences, each string here is only the current sentence.
+        only_last_outputs = []
+
         if i_frames is not None:
-            if tgt_context_memory is not None:
-                logger.debug('tgt_context_memory was provided as an argument while translating iframes that are likely from images. Ignoring tgt_context_memory.')
+            if tgt_context_memory is not None and tgt_context_memory != -1:
+                logger.debug('tgt_context_memory was provided as an argument while translating iframes that are likely from images. Ignoring tgt_context_memory since it is not == -1.')
+                tgt_context_memory = None
 
             for i_frame in i_frames:
                 if self.concat_mode == '2plus2':
@@ -114,12 +126,32 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
                 if isinstance(inp, list):
                     for i in inp:
-                        predictions = self.translation_model.full_pipe(self.map_input(i), force_words=force_words)
+                        if tgt_context_memory is not None and len(output) > 0:
+                            tgt_context_memory_to_use = self.map_input(' <SEP> '.join(output + ['']))
+                        else:
+                            tgt_context_memory_to_use = None
+
+                        predictions = self.translation_model.full_pipe(self.map_input(i), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use)
+                        # Use [0] since we have a "batch" of 1.
+                        predictions = self.strip_padding(predictions[0])
 
                         output.append([predictions])
+
+                        if tgt_context_memory is not None:
+                            only_last_outputs.append(re.split(self.sep_splitter, predictions)[-1].strip())
                 else:
-                    predictions = self.translation_model.full_pipe(self.map_input(inp), force_words=force_words)
+                    if tgt_context_memory is not None and len(output) > 0:
+                        tgt_context_memory_to_use = self.map_input(' <SEP> '.join(output + ['']))
+                    else:
+                        tgt_context_memory_to_use = None
+
+                    predictions = self.translation_model.full_pipe(self.map_input(inp), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use)
+                    predictions = self.strip_padding(predictions[0])
+
                     output.append([predictions])
+
+                    if tgt_context_memory is not None:
+                        only_last_outputs.append(re.split(self.sep_splitter, predictions)[-1].strip())
 
                 logger.debug('Done translating a section of text!')
         else:
@@ -127,22 +159,9 @@ class Seq2SeqTranslationApp(BaseTranslation):
             final_input.append(text)
 
             predictions = self.translation_model.full_pipe(self.map_input(text), force_words=force_words, tgt_context_memory=tgt_context_memory)
+            predictions = self.strip_padding(predictions[0])
 
             logger.debug('Done translating a text item!')
             output.append([predictions])
 
-        final_output = []
-
-        logger.debug('Postprocessing the translated text...')
-
-        # predictions is a list of lists, but each nested list only contains one element.
-        for prediction in output:
-            # We loop over the nested list anyways just to be safe.
-            for pr in prediction:
-                # output is a string
-                pr = self.strip_padding(pr)
-
-                final_output.append(pr)
-
-        logger.debug('Done postprocessing text!')
-        return final_input, final_output
+        return final_input, output
