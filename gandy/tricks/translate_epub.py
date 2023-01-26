@@ -70,9 +70,9 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
             context_list = context_list[1:]
 
         # TODO: Refactor.
-        if tgt_context_memory == -1 and len(tgt_context_list) > 0:
+        if tgt_context_memory == '-1' and len(tgt_context_list) > 0:
             with_context = ' <SEP> '.join(tgt_context_list)
-            tgt_context_memory_to_use = f'{with_context} <SEP>'
+            tgt_context_memory_to_use = f'{with_context} <SEP> '
         else:
             tgt_context_memory_to_use = None
 

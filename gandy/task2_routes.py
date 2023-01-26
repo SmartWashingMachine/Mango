@@ -3,6 +3,7 @@ import logging
 
 from gandy.app import app, translate_pipeline, socketio
 from gandy.task3_routes import context_state
+from gandy.utils.get_sep_regex import get_last_sentence
 
 logger = logging.getLogger('Gandy')
 
@@ -29,9 +30,11 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
         socketio.sleep()
 
         # If tgt_context_memory is -1, we assume that means that the user wants to use the prior contextual outputs as memory.
-        if tgt_context_memory == '-1':
-            sep_after = context_state.prev_target_text_list + [' <SEP>']
-            tgt_context_memory = ' <SEP> '.join(sep_after).strip()
+        if tgt_context_memory == '-1' and len(context_state.prev_target_text_list) > 0:
+            sep_after = context_state.prev_target_text_list
+            tgt_context_memory = ' <SEP> '.join(sep_after).strip() + ' <SEP> '
+        elif tgt_context_memory == '-1':
+            tgt_context_memory = None # Nothing in memory YET.
     try:
         socketio.emit('progress_task2', 0.05, include_self=True)
 
@@ -42,7 +45,8 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
         output['text'] = new_text
 
         if box_id is not None:
-            context_state.update_target_list(new_text)
+            last_sentence = get_last_sentence(new_text[-1])
+            context_state.update_target_list(last_sentence)
 
         socketio.emit('done_translating_task2', output, include_self=True)
     except Exception:

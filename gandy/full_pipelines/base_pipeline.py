@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import re
 from gandy.utils.replace_terms import replace_terms
+from gandy.utils.get_sep_regex import get_last_sentence
 
 logger = logging.getLogger('Gandy')
 
@@ -26,11 +27,10 @@ class DefaultFrameDetectionApp(BaseImageDetection):
 class DefaultSpellCorrectionApp(BaseSpellCorrection):
     def __init__(self):
         super().__init__()
-        self.sep_splitter = re.compile(r'<SEP>|<SEP1>|<SEP2>|<SEP3>')
 
     def process(self, translation_input, translation_output):
         # Remove contextual info.
-        return [re.split(self.sep_splitter, o)[-1].strip() for o in translation_output]
+        return [get_last_sentence(o) for o in translation_output]
 
 class BasePipeline():
     def __init__(

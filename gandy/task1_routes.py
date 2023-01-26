@@ -100,7 +100,7 @@ def process_task1_route():
     force_words = data['required_words'] if 'required_words' in data else None
 
     # Proper values = None (no memory) | -1
-    tgt_context_memory = data['tgt_context_memory'] if 'tgt_context_memory' in data else None
+    tgt_context_memory = data['tgt_context_memory'][0] if 'tgt_context_memory' in data else None
 
     images = request.files.getlist('file')
     socketio.start_background_task(translate_task1_background_job, images, force_words, tgt_context_memory=tgt_context_memory)

@@ -31,7 +31,7 @@ def change_multiple_models_route():
     translate_pipeline.switch_use_cuda(data['enableCuda'])
 
     if data['contextAmount'] == 'three':
-        c_amount = -1
+        c_amount = 4
     elif data['contextAmount'] == 'two':
         # Context (2) + Current Sentence (1) == 3 total
         c_amount = 3

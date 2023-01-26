@@ -4,6 +4,7 @@ from typing import List
 import logging
 import re
 from gandy.utils.clean_text import clean_text
+from gandy.utils.get_sep_regex import get_last_sentence
 
 logger = logging.getLogger('Gandy')
 
@@ -15,10 +16,8 @@ class Seq2SeqTranslationApp(BaseTranslation):
         # '/' = j. '/zh/' = c. '/ko/' = k.
         self.model_sub_path = model_sub_path
 
-        self.max_context = -1
+        self.max_context = 4
         self.max_length_a = 0
-
-        self.sep_splitter = re.compile(r'<SEP>|<SEP1>|<SEP2>|<SEP3>')
 
         super().__init__()
 
@@ -98,6 +97,10 @@ class Seq2SeqTranslationApp(BaseTranslation):
         if i_frames is not None and text is not None:
             raise RuntimeError('Either i_frames or text must be given, but not both.')
 
+        if self.max_context == 0:
+            # No point in caching context if we can't use it!
+            tgt_context_memory = None
+
         output = []
 
         final_input = []
@@ -108,7 +111,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
         if i_frames is not None:
             if tgt_context_memory is not None and tgt_context_memory != '-1':
-                logger.debug('tgt_context_memory was provided as an argument while translating iframes that are likely from images. Ignoring tgt_context_memory since it is not == -1.')
+                logger.debug(f'tgt_context_memory was provided as an argument while translating iframes that are likely from images. Ignoring tgt_context_memory since it is not == -1. Value: {tgt_context_memory}')
                 tgt_context_memory = None
 
             for i_frame in i_frames:
@@ -126,42 +129,49 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
                 if isinstance(inp, list):
                     for i in inp:
-                        if tgt_context_memory is not None and len(output) > 0:
-                            tgt_context_memory_to_use = self.map_input(' <SEP> '.join(output + ['']))
+                        if tgt_context_memory is not None and len(only_last_outputs) > 0:
+                            tgt_context_memory_to_use = self.map_input(' <SEP> '.join(only_last_outputs + [' ']))['text']
                         else:
                             tgt_context_memory_to_use = None
 
                         predictions = self.translation_model.full_pipe(self.map_input(i), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use)
-                        # Use [0] since we have a "batch" of 1.
-                        predictions = self.strip_padding(predictions[0])
+                        predictions = self.strip_padding(predictions)
 
-                        output.append([predictions])
+                        output.append(predictions)
 
                         if tgt_context_memory is not None:
-                            only_last_outputs.append(re.split(self.sep_splitter, predictions)[-1].strip())
+                            only_last_outputs.append(get_last_sentence(predictions))
                 else:
-                    if tgt_context_memory is not None and len(output) > 0:
-                        tgt_context_memory_to_use = self.map_input(' <SEP> '.join(output + ['']))
+                    if tgt_context_memory is not None and len(only_last_outputs) > 0:
+                        tgt_context_memory_to_use = self.map_input(' <SEP> '.join(only_last_outputs + [' ']))['text']
                     else:
                         tgt_context_memory_to_use = None
 
                     predictions = self.translation_model.full_pipe(self.map_input(inp), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use)
-                    predictions = self.strip_padding(predictions[0])
+                    predictions = self.strip_padding(predictions)
 
-                    output.append([predictions])
+                    output.append(predictions)
 
                     if tgt_context_memory is not None:
-                        only_last_outputs.append(re.split(self.sep_splitter, predictions)[-1].strip())
+                        only_last_outputs.append(get_last_sentence(predictions))
 
                 logger.debug('Done translating a section of text!')
         else:
             logger.debug('Translating given a string of text...')
             final_input.append(text)
 
-            predictions = self.translation_model.full_pipe(self.map_input(text), force_words=force_words, tgt_context_memory=tgt_context_memory)
-            predictions = self.strip_padding(predictions[0])
+            if tgt_context_memory is not None:
+                tgt_context_memory_to_use = self.map_input(tgt_context_memory)['text']
+            else:
+                tgt_context_memory_to_use = None
+
+            predictions = self.translation_model.full_pipe(
+                self.map_input(text), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use,
+            )
+
+            predictions = self.strip_padding(predictions)
 
             logger.debug('Done translating a text item!')
-            output.append([predictions])
+            output.append(predictions)
 
         return final_input, output

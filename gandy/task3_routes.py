@@ -47,9 +47,11 @@ def translate_task3_background_job(images, force_words, box_id = None, with_text
             socketio.emit('progress_task3', 0.05, include_self=True)
 
             # If tgt_context_memory is -1, we assume that means that the user wants to use the prior contextual outputs as memory.
-            if tgt_context_memory == '-1':
-                sep_after = context_state.prev_target_text_list + [' <SEP>']
-                tgt_context_memory = ' <SEP> '.join(sep_after).strip()
+            if tgt_context_memory == '-1' and len(context_state.prev_target_text_list) > 0:
+                sep_after = context_state.prev_target_text_list
+                tgt_context_memory = ' <SEP> '.join(sep_after).strip() + ' <SEP> '
+            elif tgt_context_memory == '-1':
+                tgt_context_memory = None # Nothing in memory YET.
 
             new_texts, source_texts = translate_pipeline.process_task3(
                 img, translation_force_words=force_words, socketio=socketio, with_text_detect=with_text_detect, context_input=context_state.prev_source_text_list,
@@ -81,7 +83,7 @@ def process_task3_route():
     with_text_detect = text_detect[0] == 'on'
 
     # Proper values = None (no memory) | -1
-    tgt_context_memory = data['tgt_context_memory'] if 'tgt_context_memory' in data else None
+    tgt_context_memory = data['tgt_context_memory'][0] if 'tgt_context_memory' in data else None
 
     images = request.files.getlist('file')
 

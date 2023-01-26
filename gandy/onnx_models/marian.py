@@ -121,6 +121,9 @@ class MarianONNX(BaseONNXModel):
         logger.debug(f'Translating item time elapsed: {(end - start).total_seconds()}s')
         logger.debug(f'For text: {x_dict["text"]}')
 
+        if tgt_context_memory is not None:
+            logger.debug(f'With context memory: {tgt_context_memory}')
+
         return outp
 
     def postprocess(self, outp):

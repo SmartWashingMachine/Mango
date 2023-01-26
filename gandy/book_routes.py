@@ -30,7 +30,7 @@ def process_book_route():
 
     data = request.form.to_dict(flat=False)
     # Proper values = None (no memory) | -1
-    tgt_context_memory = data['tgt_context_memory'] if 'tgt_context_memory' in data else None
+    tgt_context_memory = data['tgt_context_memory'][0] if 'tgt_context_memory' in data else None
 
     file = request.files['file']
 

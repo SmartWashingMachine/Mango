@@ -374,16 +374,33 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
             force_word_ids = None
 
         if tgt_context_memory is not None:
-            # We use :-1 to slice off the last token, which is the EOS token.
-            decoder_input_ids = self.tokenizer(tgt_context_memory, return_tensors='np').input_ids[:, :-1]
+            # We use :-1 to slice off the last token, which is the EOS token. -2 means slicing off SEP as well.
+            with self.tokenizer.as_target_tokenizer():
+                decoder_input_ids = self.tokenizer(tgt_context_memory, return_tensors='np').input_ids[:, :-1]
         else:
             decoder_input_ids = None
+
+        extra_kwargs = {}
+
+        if decoder_input_ids is not None and decoder_input_ids.shape[1] > 0:
+            # Model performs less accurately when prepending or appending SOS token with predefined decoder input IDs.
+            # batch_size = 1
+            # decoder_start_token_id = self.config.decoder_start_token_id
+            # initial_input_ids = np.ones((batch_size, 1), dtype=np.int64) * decoder_start_token_id
+            # Prepending: extra_kwargs['decoder_input_ids'] = np.concatenate((initial_input_ids, decoder_input_ids), axis=1)
+            # Appending: extra_kwargs['decoder_input_ids'] = np.concatenate((decoder_input_ids, initial_input_ids), axis=1)
+
+            extra_kwargs['decoder_input_ids'] = decoder_input_ids
+
+            # Model has poor coverage without this hack. Dang exposure bias...
+            hacky_min_length = decoder_input_ids.shape[1] + 4
+            if hacky_min_length < 512:
+                extra_kwargs['min_length'] = hacky_min_length
 
         start = datetime.now()
         outp = self.generate(
             input_ids=x_dict['input_ids'],
             attention_mask=x_dict['attention_mask'],
-            decoder_input_ids=decoder_input_ids,
             num_beams=5,
             max_length=512 if self.max_length_a == 0 else (x_dict['input_ids'].shape[1] * self.max_length_a),
             # Awful awful. Just no. Why? Why? Don't enable this.
@@ -400,6 +417,7 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
             repetition_penalty=1.2,
             force_words_ids=force_word_ids,
             # No patience which is kind of a bummer, even if it is likely detrimental. plz huggingface I don't want to scour the codebase anymore
+            **extra_kwargs,
         )
         end = datetime.now()
         logger.debug(f'Translating item time elapsed: {(end - start).total_seconds()}s')
@@ -412,5 +430,4 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
 
     def postprocess(self, outp):
         decoded = self.tokenizer.decode(outp[0, ...], skip_special_tokens=False)
-
         return decoded
