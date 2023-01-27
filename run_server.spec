@@ -8,7 +8,7 @@ a = Analysis(
     ['run_server.py'],
     pathex=['.venv/Lib/site-packages'],
     binaries=[],
-    datas=[],
+    datas=[('.venv/Lib/site-packages/unidic_lite', 'unidic_lite')],
     hiddenimports=[
         'engineio.async_drivers.eventlet',
         'eventlet.hubs.epolls',
