@@ -402,6 +402,9 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
             if hacky_min_length < 512:
                 extra_kwargs['min_length'] = hacky_min_length
 
+        if x_dict['input_ids'].shape[1] > 512:
+            logger.debug(f'Warning: Input is longer than supported. May affect performance. Length: {x_dict["input_ids"].shape[1]}')
+
         start = datetime.now()
         outp = self.generate(
             input_ids=x_dict['input_ids'],

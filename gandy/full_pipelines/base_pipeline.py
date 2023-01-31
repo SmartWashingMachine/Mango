@@ -190,36 +190,15 @@ class BasePipeline():
         self.in_app(socketio, 'task2')
 
         self.pre_app('translation')
-        # There's a good chance that the user is actually inputting a huge document for this task, even though the model can only have up to 512 tokens as input...
-        # In order to handle this, if large, we split the text into sentences, translate them via rotating window, and then concatenate them into one single output.
-        # Currently, there are no spell correction systems here that take advantage of the source text, so translation_input does not matter.
-        if len(text) > 1024:
-            logger.debug('Task2 found text to be long - splitting.')
 
-            text = split_text(text) # Now text is a list of strings, and not just a string.
-            translation_output = []
+        # Modify user terms on the source side.
+        # Here, text is a str but replace_terms takes in a list.
+        text = replace_terms([text], self.terms, on_side='source')[0]
 
-            # Modify user terms on the source side.
-            text = replace_terms(text, self.terms, on_side='source')
-
-            for text_str in text:
-                translation_input, translation_output_one = self.translation_app.begin_process(i_frames=None, text=text_str, force_words=translation_force_words)
-                translation_output.extend(translation_output_one)
-
-            # Then combine each output into one string.
-            translation_output = [''.join(translation_output)]
-
-            # Don't really have a good solution for reusing context memory with extremely long text yet, so just set it to None if it is not already.
-            tgt_context_memory = None
-        else:
-            # Modify user terms on the source side.
-            # Here, text is a str but replace_terms takes in a list.
-            text = replace_terms([text], self.terms, on_side='source')[0]
-
-            translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
-                i_frames=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory,
-                output_attentions=output_attentions
-            )
+        translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
+            i_frames=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory,
+            output_attentions=output_attentions
+        )
         self.post_app(socketio, 'task2')
 
         self.pre_app('spell_correction')

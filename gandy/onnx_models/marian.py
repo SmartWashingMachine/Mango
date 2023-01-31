@@ -108,6 +108,9 @@ class MarianONNX(BaseONNXModel):
 
         # output_attentions is not supported for this MT variant yet.
 
+        if x_dict['input_ids'].shape[1] > 512:
+            logger.debug(f'Warning: Input is longer than supported. May affect performance. Length: {x_dict["input_ids"].shape[1]}')
+
         start = datetime.now()
         outp = self.ort_sess.run(
             None,
