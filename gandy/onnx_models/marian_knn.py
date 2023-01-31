@@ -84,12 +84,13 @@ class OnnxMarianDecoder():
 
         decoder_outputs = self.decoder.run(None, decoder_inputs)
  
-        hidden_states, pkvs = [], []
-        for x in decoder_outputs[1:]:
+        hidden_states = [decoder_outputs[1]]
+        cross_attentions = [decoder_outputs[2]]
+        pkvs = []
+        for x in decoder_outputs[3:]:
             if x.shape[2] == 512:
-                hidden_states.append(x)
-            else:
-                pkvs.append(x)
+                continue
+            pkvs.append(x)
     
         list_pkv = tuple(x for x in pkvs)
         out_past_key_values = tuple(
@@ -98,7 +99,9 @@ class OnnxMarianDecoder():
 
         list_hidden_states = tuple(x for x in hidden_states)
 
-        return decoder_outputs[0], out_past_key_values, list_hidden_states
+        list_cross_attentions = tuple(x for x in cross_attentions)
+
+        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -119,13 +122,13 @@ class OnnxMarianDecoderInit():
             },
         )
 
-        hidden_states, pkvs = [], []
-        for x in decoder_outputs[1:]:
-            # TODO: Optimize
+        hidden_states = [decoder_outputs[1]]
+        cross_attentions = [decoder_outputs[2]]
+        pkvs = []
+        for x in decoder_outputs[3:]:
             if x.shape[2] == 512:
-                hidden_states.append(x)
-            else:
-                pkvs.append(x)
+                continue
+            pkvs.append(x)
     
         list_pkv = tuple(x for x in pkvs)
         out_past_key_values = tuple(
@@ -134,7 +137,9 @@ class OnnxMarianDecoderInit():
 
         list_hidden_states = tuple(x for x in hidden_states)
 
-        return decoder_outputs[0], out_past_key_values, list_hidden_states
+        list_cross_attentions = tuple(x for x in cross_attentions)
+
+        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -310,7 +315,7 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
             init_onnx_outputs = self.decoder_init(
                 decoder_input_ids, attention_mask, encoder_hidden_states, src_positions,
             )
-            logits, past_key_values, decoder_hidden_states = init_onnx_outputs
+            logits, past_key_values, decoder_hidden_states, cross_attentions = init_onnx_outputs
         else:
             if decoder_input_ids is not None:
                 decoder_input_ids = decoder_input_ids[:, -1:]
@@ -323,9 +328,9 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
                 src_positions,
             )
 
-            logits, past_key_values, decoder_hidden_states = onnx_outputs
+            logits, past_key_values, decoder_hidden_states, cross_attentions = onnx_outputs
 
-        outputs = Seq2SeqLMOutput(logits=logits, past_key_values=past_key_values, decoder_hidden_states=decoder_hidden_states)
+        outputs = Seq2SeqLMOutput(logits=logits, past_key_values=past_key_values, decoder_hidden_states=decoder_hidden_states, cross_attentions=cross_attentions)
 
         if self.process_outputs_cb is not None:
             # Make sure the CB modifies in-place!
@@ -349,7 +354,7 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
         x_dict['text'] = inp_text
         return x_dict
 
-    def begin_forward(self, x_dict, force_words = None, tgt_context_memory = None):
+    def begin_forward(self, x_dict, force_words = None, tgt_context_memory = None, output_attentions = False):
         did_fail = False
         if force_words:
             force_word_ids = []
@@ -407,16 +412,21 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
             do_sample=False,
             # Helps with computation time with beam search.
             early_stopping=True,
+            #early_stopping=False,
+            #length_penalty=1.0,
             # Modifies the higher order structure. Helps prevent repeating sentences. May not actually be needed anymore, since the model appears to be decently tuned.
-            no_repeat_ngram_size=7,
+            no_repeat_ngram_size=6,
             # Following the "Diverse Beam Search" paper, we set the number of groups to the number of beams.
             # This will attempt to encourage each beam to have diverse outcomes, by accounting for similarity of the beam groups at each step.
-            # num_beam_groups=5 if force_word_ids is None else 1,
+            num_beam_groups=5 if force_word_ids is None else 1,
             # Following the "CRTL" paper, we set the repetition penalty to 1.2.
             # This will attempt to further discourage repetition of previously used tokens.
             repetition_penalty=1.2,
             force_words_ids=force_word_ids,
             # No patience which is kind of a bummer, even if it is likely detrimental. plz huggingface I don't want to scour the codebase anymore
+            return_dict_in_generate=output_attentions,
+            output_attentions=output_attentions,
+            output_scores=output_attentions, # Needed to get beam indices.
             **extra_kwargs,
         )
         end = datetime.now()
@@ -426,8 +436,55 @@ class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
         if tgt_context_memory is not None:
             logger.debug(f'With context memory: {tgt_context_memory}')
 
-        return outp
+        if output_attentions:
+            return outp['sequences'], self.map_attention(outp['cross_attentions'], outp['beam_indices']), x_dict['input_ids']
+        else:
+            return outp, None, None
 
-    def postprocess(self, outp):
-        decoded = self.tokenizer.decode(outp[0, ...], skip_special_tokens=False)
-        return decoded
+    def postprocess(self, outp_data):
+        seq, attentions, source_tokens_np = outp_data
+        decoded = self.tokenizer.decode(seq[0, ...], skip_special_tokens=False)
+
+        if attentions is not None:
+            # Reference [0] since batch size == 1
+            source_tokens = source_tokens_np[0, ...].tolist()
+            target_tokens = seq[0, ...].tolist()
+
+            source_tokens = self.tokenizer.convert_ids_to_tokens(source_tokens)
+            target_tokens = self.tokenizer.convert_ids_to_tokens(target_tokens)
+        else:
+            source_tokens = None
+            target_tokens = None
+
+        return decoded, attentions, source_tokens, target_tokens
+
+    def map_attention(self, cross_attentions, per_beam_idx):
+        # Map the attentions returned by huggingface.
+        # Currently only used for neighbor model. Quite difficult to get the normal model to return it. TODO
+
+        # Ignore this - docs lie. cross_attentions is given per beam, so we need to get the best beam idx per token.
+        # beam_idx = 0 # According to docs, it's just batch size no beams... so since batch is 1 we just pick the 1st.
+
+        # Example of beam indices: [[ 0  0  0  0  0  0  1  4 -1]] (only 1 parent element since we're returning 1 sequence - the best one!
+        # Index == generated target token, Value == beam index.
+
+        # First element is always pad token, just add -1. I think... maybe?
+        # Pick [0] in per_beam_idx since there's only 1 returned sequence.
+        # beam_idx_per_target = [-1] + per_beam_idx[0].tolist() # Length == # of generated target tokens.
+        beam_idx_per_target = per_beam_idx[0].tolist() # Length == # of generated target tokens.
+
+        tgt_to_src_pairs = []
+        for tgt_idx, tgt_info in enumerate(cross_attentions):
+            last_layer_tgt_info = tgt_info[-1] # [beam, num_heads, 1, src_len]
+
+            beam_idx_to_use = beam_idx_per_target[min(tgt_idx, len(beam_idx_per_target) - 1)]
+
+            last_layer_tgt_info = last_layer_tgt_info[beam_idx_to_use, :, :, :] # [num_heads, 1, src_len]
+
+            tgt_to_src_info = np.mean(last_layer_tgt_info, axis=0) # [1, src_len]
+
+            tgt_to_src_pairs.append(tgt_to_src_info)
+
+        tgt_to_src_pairs = np.concatenate(tgt_to_src_pairs, axis=0) # [tgt_len, src_len]
+
+        return tgt_to_src_pairs.tolist()

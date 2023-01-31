@@ -76,7 +76,12 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
         else:
             tgt_context_memory_to_use = None
 
-        translated_text = app_pipeline.process_task2(t, translation_force_words=None, socketio=None, tgt_context_memory=tgt_context_memory_to_use)[0]
+        translated_text, _attentions, _source_tokens, _target_tokens = app_pipeline.process_task2(
+            t, translation_force_words=None, socketio=None, tgt_context_memory=tgt_context_memory_to_use,
+            output_attentions=False,
+        )
+        translated_text = translated_text[0]
+
         # Because EPUBs are weird, sometimes the output text will have multiple sentences with poor spacing. Quick hack.
         translated_text = re.sub(sent_regex, r'\1 \2', translated_text)
 

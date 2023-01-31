@@ -162,7 +162,7 @@ class BasePipeline():
         # Each translation_output will contain the contextual sentences too in the output strings.
         self.pre_app('translation')
 
-        translation_input, translation_output = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
+        translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
         self.post_app(socketio, 'task1')
 
         # But the spelling correction apps will take care of removing any contextual sentences from the final output.
@@ -186,7 +186,7 @@ class BasePipeline():
 
         return rgb_image, is_amg
 
-    def process_task2(self, text, translation_force_words = None, tgt_context_memory = None, socketio=None):
+    def process_task2(self, text, translation_force_words = None, tgt_context_memory = None, socketio = None, output_attentions = False):
         self.in_app(socketio, 'task2')
 
         self.pre_app('translation')
@@ -216,7 +216,10 @@ class BasePipeline():
             # Here, text is a str but replace_terms takes in a list.
             text = replace_terms([text], self.terms, on_side='source')[0]
 
-            translation_input, translation_output = self.translation_app.begin_process(i_frames=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
+            translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
+                i_frames=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory,
+                output_attentions=output_attentions
+            )
         self.post_app(socketio, 'task2')
 
         self.pre_app('spell_correction')
@@ -226,7 +229,7 @@ class BasePipeline():
         # Modify user terms on the target side.
         translation_output = replace_terms(translation_output, self.terms, on_side='target')
 
-        return translation_output
+        return translation_output, attentions, source_tokens, target_tokens
 
     def process_task3(self, image, translation_force_words = None, socketio = None, with_text_detect = False, context_input = None, tgt_context_memory = None):
         self.in_app(socketio, 'task3')
@@ -261,7 +264,7 @@ class BasePipeline():
             i_f.replace_terms(self.terms)
 
         self.pre_app('translation')
-        translation_input, translation_output = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
+        translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
         self.post_app(socketio, 'task3')
 
         self.pre_app('spell_correction')

@@ -85,7 +85,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
             'text': clean_text(input_text),
         }
 
-    def process(self, i_frames = None, text = None, force_words = None, tgt_context_memory = None):
+    def process(self, i_frames = None, text = None, force_words = None, tgt_context_memory = None, output_attentions = False):
         """
         force_words, if given, should be a list containing strings and/or sublists of strings.
 
@@ -134,7 +134,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
                         else:
                             tgt_context_memory_to_use = None
 
-                        predictions = self.translation_model.full_pipe(self.map_input(i), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use)
+                        predictions, attentions, source_tokens, target_tokens = self.translation_model.full_pipe(self.map_input(i), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use, output_attentions=output_attentions)
                         predictions = self.strip_padding(predictions)
 
                         output.append(predictions)
@@ -147,7 +147,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
                     else:
                         tgt_context_memory_to_use = None
 
-                    predictions = self.translation_model.full_pipe(self.map_input(inp), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use)
+                    predictions, attentions, source_tokens, target_tokens = self.translation_model.full_pipe(self.map_input(inp), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use, output_attentions=output_attentions)
                     predictions = self.strip_padding(predictions)
 
                     output.append(predictions)
@@ -165,8 +165,9 @@ class Seq2SeqTranslationApp(BaseTranslation):
             else:
                 tgt_context_memory_to_use = None
 
-            predictions = self.translation_model.full_pipe(
+            predictions, attentions, source_tokens, target_tokens = self.translation_model.full_pipe(
                 self.map_input(text), force_words=force_words, tgt_context_memory=tgt_context_memory_to_use,
+                output_attentions=output_attentions,
             )
 
             predictions = self.strip_padding(predictions)
@@ -174,4 +175,4 @@ class Seq2SeqTranslationApp(BaseTranslation):
             logger.debug('Done translating a text item!')
             output.append(predictions)
 
-        return final_input, output
+        return final_input, output, attentions, source_tokens, target_tokens

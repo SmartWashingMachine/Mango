@@ -309,10 +309,10 @@ class BeamSearchScorer(BeamScorer):
         # shorter batches are padded if needed
         if sent_lengths.min().item() != sent_lengths.max().item():
             assert pad_token_id is not None, "`pad_token_id` has to be defined"
-            decoded.fill_(pad_token_id)
+            decoded.fill(pad_token_id)
 
         if indices is not None:
-            indices.fill_(-1)
+            indices.fill(-1)
 
         # fill with hypotheses and eos_token_id if the latter fits in
         for i, (hypo, best_idx) in enumerate(zip(best, best_indices)):
@@ -820,7 +820,7 @@ class ConstrainedBeamSearchScorer(BeamScorer):
         # shorter batches are padded if needed
         if sent_lengths.min().item() != sent_lengths.max().item():
             assert pad_token_id is not None, "`pad_token_id` has to be defined"
-            decoded.fill_(pad_token_id)
+            decoded.fill(pad_token_id)
 
         # fill with hypotheses and eos_token_id if the latter fits in
         for i, hypo in enumerate(best):

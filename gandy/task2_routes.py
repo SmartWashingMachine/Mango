@@ -9,11 +9,14 @@ logger = logging.getLogger('Gandy')
 
 # Task2 - translate text into text (from the OCR box or the text field input or e-books).
 
-def translate_task2_background_job(text, force_words, box_id = None, tgt_context_memory = None):
+def translate_task2_background_job(text, force_words, box_id = None, tgt_context_memory = None, output_attentions = False):
     output = {
         'text': '',
         'sourceText': text,
         'boxId': box_id,
+        'attentions': [],
+        'sourceTokens': [],
+        'targetTokens': [],
     }
 
     if box_id is not None:
@@ -41,8 +44,13 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
         # tgt_context_memory, if provided, should be the string consisting of the target-side translations of the contextual sentences.
         # e.g: if our input text is like "Asource <SEP1> Bsource <SEP2> Csource", tgt_context_memory should be "Atarget <SEP1> Btarget <SEP2>" (Ctarget can't be provided as that is the target we wish to predict.)
         # This can speed up decoding for long lists of text since it doesn't have to translate the contextual sentences again and again, but can affect model accuracy.
-        new_text = translate_pipeline.process_task2(text, translation_force_words=force_words, socketio=socketio, tgt_context_memory=tgt_context_memory)
+        new_text, attentions, source_tokens, target_tokens = translate_pipeline.process_task2(
+            text, translation_force_words=force_words, socketio=socketio, tgt_context_memory=tgt_context_memory, output_attentions=output_attentions,
+        )
         output['text'] = new_text
+        output['attentions'] = attentions
+        output['sourceTokens'] = source_tokens
+        output['targetTokens'] = target_tokens
 
         if box_id is not None:
             last_sentence = get_last_sentence(new_text[-1])
@@ -64,6 +72,8 @@ def process_task2_route():
     # Proper values = None (no memory) | String (not allowed for clipboard copying) | -1 (allowed for clipboard copying)
     tgt_context_memory = data['tgt_context_memory'] if 'tgt_context_memory' in data else None
 
-    socketio.start_background_task(translate_task2_background_job, text, force_words, box_id, tgt_context_memory)
+    output_attentions = data['output_attentions'] if 'output_attentions' in data else False
+
+    socketio.start_background_task(translate_task2_background_job, text, force_words, box_id, tgt_context_memory, output_attentions)
 
     return { 'processing': True }, 202

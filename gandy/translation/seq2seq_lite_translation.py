@@ -22,11 +22,11 @@ class Seq2SeqLiteTranslationApp(Seq2SeqTranslationApp):
     def strip_non(self, text: str):
         return text.replace('<NON>', '').strip()
 
-    def process(self, i_frames=None, text=None, force_words=None, tgt_context_memory=None):
-        final_input, output = super().process(i_frames, text, force_words, tgt_context_memory=tgt_context_memory)
+    def process(self, i_frames=None, text=None, force_words=None, tgt_context_memory=None, output_attentions = False):
+        final_input, output, attentions, source_tokens, target_tokens = super().process(i_frames, text, force_words, tgt_context_memory=tgt_context_memory, output_attentions = output_attentions)
 
         final_output = []
         for o in output:
             final_output.append(self.strip_non(o))
 
-        return final_input, final_output
+        return final_input, final_output, attentions, source_tokens, target_tokens

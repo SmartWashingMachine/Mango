@@ -99,12 +99,14 @@ class MarianONNX(BaseONNXModel):
         x_dict['text'] = inp_text
         return x_dict
 
-    def begin_forward(self, x_dict, force_words = None, tgt_context_memory = None):
+    def begin_forward(self, x_dict, force_words = None, tgt_context_memory = None, output_attentions = None):
         if force_words:
             logger.info('force_words is not supported for MT with baked in beam search... yet. Ignoring.')
 
         if tgt_context_memory is not None:
             logger.info('tgt_context_memory is not supported for MT with baked in beam search... yet. Ignoring.')
+
+        # output_attentions is not supported for this MT variant yet.
 
         start = datetime.now()
         outp = self.ort_sess.run(
@@ -131,17 +133,8 @@ class MarianONNX(BaseONNXModel):
 
         decoded = self.tokenizer.decode(outp[0][0, ...], skip_special_tokens=False)
 
-        return decoded
+        attentions = None
+        source_tokens = None
+        target_tokens = None
 
-"""
-The neighbor may still work. Seems its just a warning. If not try with opset==11 non quantized.
-The mem may just be an incompatibility.
-
-Anyways for now;
-gather more phantom data.
-copy over apps after building and see if it works, after a quick debug round.
-IF the neighbor works then raise a github issue
-Also make opset==11 before copying just in case.
-
-For programming? Try and figure out a finer sentence level agreement loss, only using the current non mask. Extend from focused mix.
-"""
+        return decoded, attentions, source_tokens, target_tokens
