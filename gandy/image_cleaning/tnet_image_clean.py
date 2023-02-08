@@ -46,8 +46,8 @@ class TNetImageClean(BaseImageClean):
                 cropped_image = np.array(cropped_image)
                 cropped_image = self.transform(image=cropped_image)['image']
 
-                f = Image.fromarray(cropped_image)
-                f.save(f'./maskog_{i}.png')
+                #f = Image.fromarray(cropped_image)
+                #f.save(f'./maskog_{i}.png')
 
                 detected_mask = self.detect_mask(cropped_image) # Expected to be H * W * 1 (where 1 = channel)
                 detected_mask = detected_mask * 255
@@ -64,8 +64,8 @@ class TNetImageClean(BaseImageClean):
 
                 full_mask_image[y1 : y2, x1 : x2] = detected_mask
 
-                f = Image.fromarray(detected_mask[:, :, 0], mode='L')
-                f.save(f'./maskseg_{i}.png')
+                #f = Image.fromarray(detected_mask[:, :, 0], mode='L')
+                #f.save(f'./maskseg_{i}.png')
                 i += 1
 
         # For debugging: f = Image.fromarray(full_mask_image[:, :, 0], mode='L')

@@ -1,4 +1,3 @@
-from annoy import AnnoyIndex
 import numpy as np
 from joblib import load
 from scipy.special import softmax
@@ -6,6 +5,7 @@ from random import sample
 from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
 from gandy.onnx_models.marian_knn import MarianKNNONNX
 import logging
+import faiss
 
 logger = logging.getLogger('Gandy')
 
@@ -30,10 +30,12 @@ def process_outputs_cb_for_kretrieval(mt_retrieval, outputs):
         last_logits = outputs.logits[beam_idx, -1, :] # [60719]
 
         # Process to hopefully get a better output.
-        neighbor_values, neighbor_distances = mt_retrieval.retrieve_neighbors_from_datastore(last_hidden)
+        neighbor_values, neighbor_distances, did_succeed = mt_retrieval.retrieve_neighbors_from_datastore(last_hidden)
+        if not did_succeed:
+            continue
 
         knn_representations = mt_retrieval.compute_knn_prob_true(neighbor_values, neighbor_distances, last_logits)
-        fused_representation = mt_retrieval.fuse_probs(last_logits, knn_representations) #<- no different than logits...? whats this mean
+        fused_representation = mt_retrieval.fuse_probs(last_logits, knn_representations)
 
         outputs.logits[beam_idx, -1, :] = fused_representation
 
@@ -95,28 +97,12 @@ class MTRetrieval():
         return 4
 
     def initialize_datastore(self):
-        # Load index.
-        self.datastore_hidden_index = AnnoyIndex(128, 'euclidean')
-
         try:
-            # Though prefault=True does not work on Windows... I'm keeping it here for the future.
-            self.datastore_hidden_index.load(f'models/knn/index_V2.ann', prefault=True) # Returns a bool, but modifies inplace.
+            # Load index. I tried to use the Annoy package, but I found it to be quite... Annoy-ing.
+            self.datastore_hidden_index: faiss.IndexFlatL2 = faiss.read_index('models/knn/index.faiss', faiss.IO_FLAG_ONDISK_SAME_DIR)
+
             # Load values.
-            self.datastore_targets = np.load('models/knn/targets_V2.npy', allow_pickle=True).item()
-
-            logger.info('Datastore memory-mapped. Warming up...')
-            indices = list(self.datastore_targets.keys())
-
-            # See: https://github.com/spotify/annoy/issues/376
-            every_n = 500
-            if len(indices) > every_n:
-                sample_n = len(indices) // every_n
-                indices = sample(indices, k=sample_n)
-                for iteration, idx in enumerate(indices):
-                    self.datastore_hidden_index.get_item_vector(idx)
-
-                    if iteration % (sample_n // 10) == 0:
-                        logger.info(f'Warming up at: ({iteration+1} / {sample_n})')
+            self.datastore_targets = np.load('models/knn/targets.npy', allow_pickle=True).item()
 
             logger.info('Datastore loaded!')
         except Exception as e:
@@ -133,10 +119,18 @@ class MTRetrieval():
         # This returns a list of integers. I'm hoping that this is for the indices...
         reduced = self.reduce_dims(decoder_final_hidden_states)
 
-        neighbor_indices, neighbor_distances = self.datastore_hidden_index.get_nns_by_vector(reduced, n=self.get_k_value(), include_distances=True)
+        neighbor_distances, neighbor_indices = self.datastore_hidden_index.search(reduced[None, ...], k=self.get_k_value())
+        neighbor_distances = neighbor_distances[0, ...] # Resqueeze.
+        neighbor_indices = neighbor_indices[0, ...]
+
+        if -1 in neighbor_indices:
+            # Failure case. Not enough neighbors so just don't bother.
+            logger.info('Not enough neighbors - ignoring.')
+            return None, None, False
+            
         neighbor_values = [self.datastore_targets[n] for n in neighbor_indices]
 
-        return neighbor_values, neighbor_distances
+        return neighbor_values, neighbor_distances, True
 
     def fuse_probs(self, mt_prob, knn_prob):
         fuse_param = self.get_fusion_value()
@@ -184,4 +178,3 @@ class KRetrievalTranslationApp(Seq2SeqTranslationApp):
         logger.info('Done loading translation model!')
 
         self.loaded = True
-
