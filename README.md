@@ -47,20 +47,20 @@ Lastly, all of these models were trained or tuned by me, and I'll probably conti
 
 1. Install ImageMagick.
 2. Download the prebuilt Mango application [here](https://github.com/SmartWashingMachine/Gandy/releases/).
-3. Download the "Jap2Eng Starter" model pack [here](https://drive.google.com/file/d/1F_-YTbDAvpjPTazniIgNtQZKcRv4fLYC/view?usp=share_link), and drag the "models" folder to the same folder that Mango.exe is located in. If you want more functionality, download some of the model packs below.
+3. Download the "Jap2Eng Starter" model pack [here](https://drive.google.com/file/d/1_-q9tCBvpH9oNrVD0w_p7TXtEgB4Yo_R/view?usp=share_link), and drag the "models" folder to the same folder that Mango.exe is located in. If you want more functionality, download some of the model packs below.
 4. Run mango.exe!
 
 *Models will not work if the corresponding model pack is not installed.*
 
 # Model packs for installation
 
-- [Jap2Eng Starter](https://drive.google.com/file/d/1F_-YTbDAvpjPTazniIgNtQZKcRv4fLYC/view?usp=share_link) - Only supports base Japanese to English translation. Only allows the DETRG text detection model (default models). **At minimum, you need this package.**
+- [Jap2Eng Starter](https://drive.google.com/file/d/1_-q9tCBvpH9oNrVD0w_p7TXtEgB4Yo_R/view?usp=share_link) - Only supports base Japanese to English translation. Only allows the DETRG text detection model (default models). **At minimum, you need this package.**
 - [Chinese Lite](https://drive.google.com/file/d/10nse2-1Tp-Hv4PIFHtGaRH0n3G_9cDbQ/view?usp=share_link) - Adds support for Chinese translation.
 - [Korean Lite](https://drive.google.com/file/d/1JjiATtHGdnJzUU2Q_xK6hgJu6y6Tq-oO/view?usp=share_link) - Adds support for Korean translation.
 - [Text Things](https://drive.google.com/file/d/1bap2jNkXNwM01MXYlzwypIKzgAc0fv-3/view?usp=share_link) - Adds support for RCNN and DETR-VN text detection models.
 - [Inpainting](https://drive.google.com/file/d/1BCq9CHgwprcF9syPDltX2w7nwYKV28d4/view?usp=share_link) - Adds support for AI inpainting. Experimental.
 - [DocRepair](https://drive.google.com/file/d/1mWtpRRxPZ_JyiKfJ6yWm5-2ljed7g_ES/view?usp=share_link) - Adds support for DocRepair. Experimental.
-- [Jap2Eng Neighbor](https://drive.google.com/file/d/1S8yRCjuRJ_Z5RY9tNtxobkjichL54Tks/view?usp=share_link) - Adds a stronger translation model. Experimental.
+- [Jap2Eng Neighbor](https://drive.google.com/file/d/1WMbErEy5vbkqU46LrpsJ_81J_cjjgnsI/view?usp=share_link) - Adds a stronger translation model.
 
 To install a package, simply unzip the file and drag the "models" folder to the same folder that mango.exe is located in.
 
@@ -74,7 +74,7 @@ These include:
 
 - Text detection, including a Faster-RCNN model as well as a Detection Transformer model.
 - Text recognition, including TrOCR models. I've found them to work much better than CNN models on this task.
-- Translation, including OPUS models from huggingface. I finetuned them to try and utilize contextual info from prior input sentences with a contextual loss function. The base translation model was also configured to use position info more effectively - techniques I've found critical to deter neural text degeneration.
+- Translation, including OPUS models from huggingface. I finetuned them to try and utilize contextual info from prior input sentences with a contextual loss function. The base translation model was also configured to use position info more effectively - techniques that seem critical to deter neural text degeneration.
 - Image inpainting, using a basic EfficientNet text segmentation model as well as an EdgeConnect model finetuned for anime styled images. I modified the EdgeConnect decoder to use residual blocks as well as nearest neighbor upsampling. Still kinda sucks though.
 - Post editing, using pretrained BERT models finetuned to correct text with contextual info. This feature is still a work in progress.
 
@@ -87,12 +87,10 @@ Mango is currently in alpha and I'm only really working on this in my free time.
 3. Text detection is not as accurate as I'd like it to be. I don't have many images to train it with...
 4. Image inpainting is very basic right now.
 5. Can be a pain to install.
-6. Text recognition model could use more tuning.
-7. Buggy.
-8. Chinese-English and Korean-English models are still very limited.
-9. Code is messy. I'll clean it up in the future... maybe. Technical debt is real.
-10. Disable full logging. Will disable once I fix a few more bugs.
-11. Need to do a lot of work on the typesetting.
+6. Buggy.
+7. Chinese-English and Korean-English models are still very limited.
+8. Code is messy. I'll clean it up in the future... maybe. Technical debt is real.
+9. Disable full logging. Will disable once I fix a few more bugs.
 
 # Where are the output files saved?
 
@@ -125,6 +123,8 @@ All output files (translated books, saved backlog text files, and translated ima
 [P-transformer](https://arxiv.org/abs/2212.05830) - Simple to implement and very strong. One of the few tricks that seem to work in this domain.
 
 [Focused Concatenation](https://arxiv.org/abs/2210.13388) - A great trick to improve document MT performance.
+
+[On Layer Normalizations and Residual Connections in Transformers](https://arxiv.org/abs/2206.00330) - Not strictly necessary with the current model setup, but it gives peace of mind.
 
 [DocRepair](https://arxiv.org/abs/1909.01383) - Sometimes it works really well and sometimes it fails horribly, but either way it's really cool. CADec gave me nightmares.
 
