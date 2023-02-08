@@ -13,6 +13,12 @@
 
 ![Text Page](images/mango-preview-text.jpg)
 
+<p align="center">
+  <img alt="Untranslated" src="images/untranslated_balloon_dream__030.jpg" width="45%">
+&nbsp; &nbsp; &nbsp; &nbsp;
+  <img alt="Translated" src="images/translated_balloon_dream__030.png" width="45%">
+</p>
+
 **Mango-Mandy+Gandy** is a fully automated tool to machine translate text, manga, games, and ebooks. It comes with a bunch of models tuned in house as well as a basic UI to easily use them.
 
 :warning: CURRENTLY IN ALPHA - Expect a bunch of bugs and just general unwieldiness. :warning:
@@ -105,6 +111,8 @@ All output files (translated books, saved backlog text files, and translated ima
 ;)
 
 # Thanks to...
+
+[Towards Fully Automated Manga Translation](https://arxiv.org/abs/2012.14271) - Used their dataset for some quick evaluation tests, including the image shown above.
 
 [Helsinki NLP](https://huggingface.co/Helsinki-NLP) - For their awesome tools, datasets, and models that they've made publicly available. Mainly used [OpenSubtitles](http://www.opensubtitles.org/)
 
