@@ -9,7 +9,6 @@ from gandy.image_cleaning.blur_image_clean import BlurImageCleanApp
 from gandy.image_redrawing.amg_convert import AMGConvertApp
 from gandy.image_redrawing.image_redraw_v2 import ImageRedrawV2App
 from gandy.image_redrawing.neighbor_redraw import NeighborRedrawApp
-from gandy.image_redrawing.wand_caption_redraw import WandCaptionRedrawApp
 from gandy.image_redrawing.image_redraw_global import ImageRedrawGlobalApp
 from gandy.text_detection.detrg_image_detection import DETRGBigImageDetectionApp, DETRVnImageDetectionApp
 from gandy.text_detection.rcnn_image_detection import ResNetImageDetectionApp
@@ -100,14 +99,12 @@ class AdvancedPipeline(BasePipeline):
             image_redrawing_app=SwitchApp(
                 apps=[
                     AMGConvertApp(),
-                    WandCaptionRedrawApp(),
                     NeighborRedrawApp(),
                     ImageRedrawV2App(),
                     ImageRedrawGlobalApp(),
                 ],
                 app_names=[
                     'amg_convert',
-                    'wand',
                     'neighbor',
                     'simple',
                     'global',
