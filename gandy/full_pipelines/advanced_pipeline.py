@@ -10,6 +10,7 @@ from gandy.image_redrawing.image_redraw_v2 import ImageRedrawV2App
 from gandy.image_redrawing.neighbor_redraw import NeighborRedrawApp
 from gandy.image_redrawing.wand_blur_redraw import WandBlurRedrawApp
 from gandy.image_redrawing.wand_caption_redraw import WandCaptionRedrawApp
+from gandy.image_redrawing.image_redraw_global import ImageRedrawGlobalApp
 from gandy.text_detection.detrg_image_detection import DETRGBigImageDetectionApp, DETRVnImageDetectionApp
 from gandy.text_detection.rcnn_image_detection import ResNetImageDetectionApp
 from gandy.text_recognition.text_recognition import TesseractTextRecognitionApp
@@ -101,6 +102,7 @@ class AdvancedPipeline(BasePipeline):
                     NeighborRedrawApp(),
                     WandBlurRedrawApp(),
                     ImageRedrawV2App(),
+                    ImageRedrawGlobalApp(),
                 ],
                 app_names=[
                     'amg_convert',
@@ -108,6 +110,7 @@ class AdvancedPipeline(BasePipeline):
                     'neighbor',
                     'wand_blur',
                     'simple',
+                    'global',
                 ],
                 # default_idx=-1
             ),
