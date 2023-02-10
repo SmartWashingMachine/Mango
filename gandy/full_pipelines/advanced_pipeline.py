@@ -5,10 +5,10 @@ from gandy.image_cleaning.simple_image_clean import SimpleImageCleanApp
 from gandy.image_cleaning.telea_image_clean import TeleaImageCleanApp
 from gandy.image_cleaning.tnet_image_clean import TNetImageClean
 from gandy.image_cleaning.tnet_edge_image_clean import TNetEdgeImageClean
+from gandy.image_cleaning.blur_image_clean import BlurImageCleanApp
 from gandy.image_redrawing.amg_convert import AMGConvertApp
 from gandy.image_redrawing.image_redraw_v2 import ImageRedrawV2App
 from gandy.image_redrawing.neighbor_redraw import NeighborRedrawApp
-from gandy.image_redrawing.wand_blur_redraw import WandBlurRedrawApp
 from gandy.image_redrawing.wand_caption_redraw import WandCaptionRedrawApp
 from gandy.image_redrawing.image_redraw_global import ImageRedrawGlobalApp
 from gandy.text_detection.detrg_image_detection import DETRGBigImageDetectionApp, DETRVnImageDetectionApp
@@ -85,6 +85,7 @@ class AdvancedPipeline(BasePipeline):
                     TeleaImageCleanApp(),
                     TNetImageClean(),
                     TNetEdgeImageClean(),
+                    BlurImageCleanApp(),
                 ],
                 app_names=[
                     'none',
@@ -92,6 +93,7 @@ class AdvancedPipeline(BasePipeline):
                     'telea',
                     'smart_telea',
                     'edge_connect',
+                    'blur',
                 ],
                 # default_idx=1,
             ),
@@ -100,7 +102,6 @@ class AdvancedPipeline(BasePipeline):
                     AMGConvertApp(),
                     WandCaptionRedrawApp(),
                     NeighborRedrawApp(),
-                    WandBlurRedrawApp(),
                     ImageRedrawV2App(),
                     ImageRedrawGlobalApp(),
                 ],
@@ -108,7 +109,6 @@ class AdvancedPipeline(BasePipeline):
                     'amg_convert',
                     'wand',
                     'neighbor',
-                    'wand_blur',
                     'simple',
                     'global',
                 ],
