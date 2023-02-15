@@ -4,7 +4,8 @@ from onnxruntime import (
     InferenceSession,
     SessionOptions,
     ExecutionMode,
-    RunOptions
+    RunOptions,
+    OrtValue,
 )
 from transformers import (
     AutoTokenizer,
@@ -14,6 +15,7 @@ from gandy.utils.knn_utils.modeling_outputs import (
     Seq2SeqLMOutput,
     BaseModelOutput,
 )
+from typing import List
 
 from gandy.utils.knn_utils.generation_mixin import GenerationMixinNumpy
 import functools
@@ -25,6 +27,14 @@ import logging
 
 logger = logging.getLogger('Gandy')
 
+def session_has_cuda(sess: InferenceSession):
+    providers = sess.get_providers()
+    for prov in providers:
+        if 'Dml' in prov:
+            return True
+
+    return False
+
 """
 
 Unlike the typical Marian model, it uses beam search logic borrowed from Huggingface but adapted to use numpy arrays instead of pytorch.
@@ -32,10 +42,25 @@ Unlike the typical Marian model, it uses beam search logic borrowed from Hugging
 """
 
 class OnnxMarianEncoder():
-    def __init__(self, encoder_sess):
+    def __init__(self, encoder_sess: InferenceSession):
         self.encoder = encoder_sess
+        self.use_cuda = session_has_cuda(encoder_sess)
 
         self.main_input_name = 'input_ids'
+
+    def prepare_io_binding(self, input_ids: np.ndarray, attention_mask: np.ndarray):
+        io_binding = self.encoder.io_binding()
+
+        input_ids = OrtValue.ortvalue_from_numpy(input_ids.astype(np.int64), 'cuda', device_id=0)
+        attention_mask = OrtValue.ortvalue_from_numpy(attention_mask.astype(np.int64), 'cuda', device_id=0)
+        
+        io_binding.bind_ortvalue_input('input_ids', input_ids)
+        io_binding.bind_ortvalue_input('attention_mask', attention_mask)
+
+        io_binding.bind_output('encoder_hidden_state', 'cuda', device_id=0)
+        io_binding.bind_output('src_positions', 'cuda', device_id=0)
+
+        return io_binding
 
     def forward(
         self,
@@ -47,80 +72,152 @@ class OnnxMarianEncoder():
         output_hidden_states=None,
         return_dict=None,
     ):
-        encoder_hidden_state, src_positions = (
-            self.encoder.run(
-                None,
-                {
-                    "input_ids": input_ids.astype(np.int64),
-                    "attention_mask": attention_mask.astype(np.int64),
-                },
+        if self.use_cuda:
+            io_binding = self.prepare_io_binding(input_ids, attention_mask)
+
+            io_binding.synchronize_inputs()
+            self.encoder.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            ort_outputs = io_binding.get_outputs()
+
+            encoder_hidden_state = ort_outputs[0]
+            src_positions = ort_outputs[1]
+        else:
+            encoder_hidden_state, src_positions = (
+                self.encoder.run(
+                    None,
+                    {
+                        "input_ids": input_ids.astype(np.int64),
+                        "attention_mask": attention_mask.astype(np.int64),
+                    },
+                )
             )
-        )
 
         return BaseModelOutput(encoder_hidden_state, src_positions=src_positions)
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-class OnnxMarianDecoder():
-    def __init__(self, decoder_sess):
+class OnnxMarianDecoderInit():
+    def __init__(self, decoder_sess: InferenceSession):
         self.decoder = decoder_sess
+        self.use_cuda = session_has_cuda(decoder_sess)
+
+    def prepare_io_binding(self, input_ids: np.ndarray, attention_mask: np.ndarray, encoder_hidden_states: OrtValue, src_positions: OrtValue):
+        io_binding = self.decoder.io_binding()
+
+        input_ids = OrtValue.ortvalue_from_numpy(input_ids.astype(np.int64), 'cuda', device_id=0)
+        attention_mask = OrtValue.ortvalue_from_numpy(attention_mask.astype(np.int64), 'cuda', device_id=0)
+        
+        io_binding.bind_ortvalue_input('input_ids', input_ids)
+        io_binding.bind_ortvalue_input('attention_mask', attention_mask)
+        io_binding.bind_ortvalue_input('encoder_hidden_states', encoder_hidden_states)
+        io_binding.bind_ortvalue_input('src_positions', src_positions)
+
+
+        # Bind all outputs.
+        for arg in self.decoder.get_outputs():
+            io_binding.bind_output(arg.name, 'cuda', device_id=0)
+
+        return io_binding
+
+    def forward(self, input_ids, encoder_attention_mask, encoder_hidden_states, src_positions):
+        if self.use_cuda:
+            io_binding = self.prepare_io_binding(input_ids, encoder_attention_mask, encoder_hidden_states, src_positions)
+
+            io_binding.synchronize_inputs()
+            self.decoder.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
+
+            ort_outputs = io_binding.get_outputs()
+            # Convert to numpy.
+            decoder_outputs = [o.numpy() for o in ort_outputs]
+        else:
+            decoder_outputs = self.decoder.run(
+                None,
+                {
+                    "input_ids": input_ids.astype(np.int64),
+                    "encoder_attention_mask": encoder_attention_mask.astype(np.int64),
+                    "encoder_hidden_states": encoder_hidden_states,
+                    "src_positions": src_positions,
+                },
+            )
+
+        hidden_states = [decoder_outputs[1]]
+        cross_attentions = [decoder_outputs[2]]
+        pkvs = []
+        for x in decoder_outputs[3:]:
+            if x.shape[2] == 512:
+                continue
+            pkvs.append(x)
+    
+        list_pkv = tuple(x for x in pkvs)
+        out_past_key_values = tuple(
+            list_pkv[i : i + 4] for i in range(0, len(list_pkv), 4)
+        )
+
+        list_hidden_states = tuple(x for x in hidden_states)
+
+        list_cross_attentions = tuple(x for x in cross_attentions)
+
+        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+class OnnxMarianDecoder():
+    def __init__(self, decoder_sess: InferenceSession):
+        self.decoder = decoder_sess
+        self.use_cuda = session_has_cuda(decoder_sess)
+
+    def prepare_io_binding(self, input_ids: np.ndarray, attention_mask: np.ndarray, flat_past_key_values: List[np.ndarray]):
+        io_binding = self.decoder.io_binding()
+        input_names = [x.name for x in self.decoder.get_inputs()]
+
+        input_ids = OrtValue.ortvalue_from_numpy(input_ids.astype(np.int64), 'cuda', device_id=0)
+        attention_mask = OrtValue.ortvalue_from_numpy(attention_mask.astype(np.int64), 'cuda', device_id=0)
+        
+        io_binding.bind_ortvalue_input(input_names[0], input_ids)
+        io_binding.bind_ortvalue_input(input_names[1], attention_mask)
+
+        i = 2
+        for p in flat_past_key_values:
+            ort_p = OrtValue.ortvalue_from_numpy(p, 'cuda', device_id=0)
+            io_binding.bind_ortvalue_input(input_names[i], ort_p)
+
+            i += 1
+
+        # Bind all outputs.
+        for arg in self.decoder.get_outputs():
+            io_binding.bind_output(arg.name, 'cuda', device_id=0)
+
+        return io_binding
 
     def forward(self, input_ids, attention_mask, encoder_hidden_states, past_key_values, src_positions):
         flat_past_key_values = functools.reduce(operator.iconcat, past_key_values, [])
-        
-        input_names = [x.name for x in self.decoder.get_inputs()]
-        inputs = [
-            input_ids,
-            attention_mask,
-        ] + [
-            tensor for tensor in flat_past_key_values
-        ]
 
-        decoder_inputs = dict(zip(input_names, inputs))
+        if self.use_cuda:
+            io_binding = self.prepare_io_binding(input_ids, attention_mask, flat_past_key_values)
 
-        #for (k, v) in decoder_inputs.items():
-            #print(f'{k} - {v.shape}')
+            io_binding.synchronize_inputs()
+            self.decoder.run_with_iobinding(io_binding)
+            io_binding.synchronize_outputs()
 
-        decoder_outputs = self.decoder.run(None, decoder_inputs)
- 
-        hidden_states = [decoder_outputs[1]]
-        cross_attentions = [decoder_outputs[2]]
-        pkvs = []
-        for x in decoder_outputs[3:]:
-            if x.shape[2] == 512:
-                continue
-            pkvs.append(x)
-    
-        list_pkv = tuple(x for x in pkvs)
-        out_past_key_values = tuple(
-            list_pkv[i : i + 4] for i in range(0, len(list_pkv), 4)
-        )
+            ort_outputs = io_binding.get_outputs()
+            # Convert to numpy.
+            decoder_outputs = [o.numpy() for o in ort_outputs]
+        else:
+            input_names = [x.name for x in self.decoder.get_inputs()]
+            inputs = [
+                input_ids,
+                attention_mask,
+            ] + [
+                tensor for tensor in flat_past_key_values
+            ]
 
-        list_hidden_states = tuple(x for x in hidden_states)
-
-        list_cross_attentions = tuple(x for x in cross_attentions)
-
-        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-
-class OnnxMarianDecoderInit():
-    def __init__(self, decoder_sess):
-        self.decoder = decoder_sess
-
-    def forward(self, input_ids, encoder_attention_mask, encoder_hidden_states, src_positions):
-        decoder_outputs = self.decoder.run(
-            None,
-            {
-                "input_ids": input_ids.astype(np.int64),
-                "encoder_attention_mask": encoder_attention_mask.astype(np.int64),
-                "encoder_hidden_states": encoder_hidden_states,
-                "src_positions": src_positions,
-            },
-        )
+            decoder_inputs = dict(zip(input_names, inputs))
+            decoder_outputs = self.decoder.run(None, decoder_inputs)
 
         hidden_states = [decoder_outputs[1]]
         cross_attentions = [decoder_outputs[2]]
@@ -143,7 +240,6 @@ class OnnxMarianDecoderInit():
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
-
 
 class MarianKNNONNX(BaseONNXModel, GenerationMixinNumpy):
     def __init__(self, onnx_path_enc, onnx_path_dec, onnx_path_dec_init, dataloader_path, process_outputs_cb = None, use_cuda = None, max_length_a = 0):
