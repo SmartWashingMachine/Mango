@@ -3,7 +3,7 @@ from joblib import load
 from scipy.special import softmax
 from random import sample
 from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
-from gandy.onnx_models.marian_knn import MarianKNNONNX
+from gandy.onnx_models.marian import MarianONNX
 import logging
 import faiss
 
@@ -166,10 +166,10 @@ class KRetrievalTranslationApp(Seq2SeqTranslationApp):
         logger.info('Loading translation model...')
         # Only the J model supports KNN for now.
         s = '/'
-        self.translation_model = MarianKNNONNX(
-            f'models/marian{s}encoder.onnx',
-            f'models/marian{s}decoder.onnx',
-            f'models/marian{s}decoder_init.onnx',
+        self.translation_model = MarianONNX(
+            f'models/marian{s}encoder_q.onnx',
+            f'models/marian{s}decoder_q.onnx',
+            f'models/marian{s}decoder_init_q.onnx',
             f'models/marian{s}tokenizer_mt',
             process_outputs_cb=lambda x: process_outputs_cb_for_kretrieval(self.mt_retrieval, x),
             use_cuda=self.use_cuda,

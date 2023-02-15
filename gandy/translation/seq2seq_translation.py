@@ -2,7 +2,6 @@ from gandy.onnx_models.marian import MarianONNX
 from gandy.translation.base_translation import BaseTranslation
 from typing import List
 import logging
-import re
 from gandy.utils.clean_text import clean_text
 from gandy.utils.get_sep_regex import get_last_sentence
 
@@ -35,7 +34,9 @@ class Seq2SeqTranslationApp(BaseTranslation):
         logger.info('Loading translation model...')
 
         self.translation_model = MarianONNX(
-            f'models/marian{s}optimized_marian.onnx',
+            f'models/marian{s}encoder_q.onnx',
+            f'models/marian{s}decoder_q.onnx',
+            f'models/marian{s}decoder_init_q.onnx',
             f'models/marian{s}tokenizer_mt',
             use_cuda=self.use_cuda,
             max_length_a=self.max_length_a,
