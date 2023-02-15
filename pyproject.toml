@@ -33,10 +33,11 @@ EbookLib = "^0.17.1"
 ipykernel = "^6.16.0"
 dnspython = "^2.2.1"
 tqdm = "^4.64.1"
-onnxruntime-directml = "^1.13.1"
+onnxruntime-directml = "1.12.1"
 joblib = "^1.2.0"
 scikit-learn = "^1.2.0"
 faiss-cpu = "^1.7.3"
+onnx = "^1.13.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
