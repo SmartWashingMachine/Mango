@@ -1,7 +1,5 @@
 import numpy as np
-from joblib import load
 from scipy.special import softmax
-from random import sample
 from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
 from gandy.onnx_models.marian import MarianONNX
 import logging
@@ -43,15 +41,6 @@ def process_outputs_cb_for_kretrieval(mt_retrieval, outputs):
 
 class MTRetrieval():
     def __init__(self):
-        # In order to make the datastore more compact, the keys (hidden states) for the datastore are reduced via PCA.
-        # Don't think anybody wants to download a 30GB datastore lol.
-        try:
-            pca_path_to_save = 'models/knn/pca.joblib'
-            self.pca = load(pca_path_to_save) # 128 components
-        except Exception as e:
-            logger.info('Error loading PCA for KNN:')
-            logger.exception(e)
-
         self.initialize_datastore()
 
     def compute_knn_prob_true(self, neighbor_values, neighbor_distances, mt_dist):
@@ -116,10 +105,7 @@ class MTRetrieval():
         """
         decoder_final_hidden_states is the hidden states outputted by the last decoder layer to predict a token.
         """
-        # This returns a list of integers. I'm hoping that this is for the indices...
-        reduced = self.reduce_dims(decoder_final_hidden_states)
-
-        neighbor_distances, neighbor_indices = self.datastore_hidden_index.search(reduced[None, ...], k=self.get_k_value())
+        neighbor_distances, neighbor_indices = self.datastore_hidden_index.search(decoder_final_hidden_states[None, ...], k=self.get_k_value())
         neighbor_distances = neighbor_distances[0, ...] # Resqueeze.
         neighbor_indices = neighbor_indices[0, ...]
 
@@ -135,15 +121,6 @@ class MTRetrieval():
     def fuse_probs(self, mt_prob, knn_prob):
         fuse_param = self.get_fusion_value()
         return ((1 - fuse_param) * mt_prob) + (fuse_param * knn_prob)
-
-    def reduce_dims(self, hidden):
-        hidden = hidden[None, ...] # Scikit requires a single sample to be of shape (1, -1). This is equivalent to pytorch's .unsqueeze(dim=0)
-
-        reduced = self.pca.transform(hidden)
-
-        # Old: reduced = torch.from_numpy(reduced).squeeze(dim=0) # Then we can resqueeze it.
-        reduced = reduced[0, ...]
-        return reduced
 
 class KRetrievalTranslationApp(Seq2SeqTranslationApp):
     def __init__(self, concat_mode='frame'):
@@ -167,9 +144,9 @@ class KRetrievalTranslationApp(Seq2SeqTranslationApp):
         # Only the J model supports KNN for now.
         s = '/'
         self.translation_model = MarianONNX(
-            f'models/marian{s}encoder_q.onnx',
-            f'models/marian{s}decoder_q.onnx',
-            f'models/marian{s}decoder_init_q.onnx',
+            f'models/marian{s}encoder.onnx',
+            f'models/marian{s}decoder.onnx',
+            f'models/marian{s}decoder_init.onnx',
             f'models/marian{s}tokenizer_mt',
             process_outputs_cb=lambda x: process_outputs_cb_for_kretrieval(self.mt_retrieval, x),
             use_cuda=self.use_cuda,
