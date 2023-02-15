@@ -1,0 +1,2 @@
+Almost all of the code here is from the Transformers package by the Huggingface team. I only made slight modifications such that the package does not rely on torch.
+They've licensed the code under the Apache license, see it here: https://github.com/huggingface/optimum/blob/main/LICENSE
