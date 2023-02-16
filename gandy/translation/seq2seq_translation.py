@@ -34,9 +34,9 @@ class Seq2SeqTranslationApp(BaseTranslation):
         logger.info('Loading translation model...')
 
         self.translation_model = MarianONNX(
-            f'models/marian{s}encoder.onnx',
-            f'models/marian{s}decoder.onnx',
-            f'models/marian{s}decoder_init.onnx',
+            f'models/marian{s}encoder_q.onnx',
+            f'models/marian{s}decoder_q.onnx',
+            f'models/marian{s}decoder_init_q.onnx',
             f'models/marian{s}tokenizer_mt',
             use_cuda=self.use_cuda,
             max_length_a=self.max_length_a,

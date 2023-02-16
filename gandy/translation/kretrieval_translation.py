@@ -4,6 +4,7 @@ from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
 from gandy.onnx_models.marian import MarianONNX
 import logging
 import faiss
+from datetime import datetime
 
 logger = logging.getLogger('Gandy')
 
@@ -105,9 +106,15 @@ class MTRetrieval():
         """
         decoder_final_hidden_states is the hidden states outputted by the last decoder layer to predict a token.
         """
+        # start = datetime.now()
+
         neighbor_distances, neighbor_indices = self.datastore_hidden_index.search(decoder_final_hidden_states[None, ...], k=self.get_k_value())
         neighbor_distances = neighbor_distances[0, ...] # Resqueeze.
         neighbor_indices = neighbor_indices[0, ...]
+
+        # end = datetime.now()
+
+        # logger.debug(f'KNN retrieval time elapsed: {(end - start).total_seconds()}s') # KNN takes almost no time. It's truly amazing...
 
         if -1 in neighbor_indices:
             # Failure case. Not enough neighbors so just don't bother.
@@ -144,9 +151,9 @@ class KRetrievalTranslationApp(Seq2SeqTranslationApp):
         # Only the J model supports KNN for now.
         s = '/'
         self.translation_model = MarianONNX(
-            f'models/marian{s}encoder.onnx',
-            f'models/marian{s}decoder.onnx',
-            f'models/marian{s}decoder_init.onnx',
+            f'models/marian{s}encoder_q.onnx',
+            f'models/marian{s}decoder_q.onnx',
+            f'models/marian{s}decoder_init_q.onnx',
             f'models/marian{s}tokenizer_mt',
             process_outputs_cb=lambda x: process_outputs_cb_for_kretrieval(self.mt_retrieval, x),
             use_cuda=self.use_cuda,
