@@ -15,7 +15,6 @@ from gandy.text_detection.rcnn_image_detection import ResNetImageDetectionApp
 from gandy.text_recognition.text_recognition import TesseractTextRecognitionApp
 from gandy.text_recognition.tr_recognition import TrOCRTextRecognitionApp
 from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
-from gandy.translation.seq2seq_lite_translation import Seq2SeqLiteTranslationApp
 from gandy.translation.kretrieval_translation import KRetrievalTranslationApp
 from gandy.translation.graves_translation import GravesTranslationApp
 from gandy.spell_correction.vaet_paraphrase import VaetParaphraseApp
@@ -56,8 +55,8 @@ class AdvancedPipeline(BasePipeline):
                     Seq2SeqTranslationApp(concat_mode='2plus2'),
                     KRetrievalTranslationApp(concat_mode='2plus2'),
                     GravesTranslationApp(concat_mode='2plus2'),
-                    Seq2SeqLiteTranslationApp(concat_mode='2plus2', model_sub_path='_zh/'),
-                    Seq2SeqLiteTranslationApp(concat_mode='2plus2', model_sub_path='_ko/'),
+                    Seq2SeqTranslationApp(concat_mode='2plus2', model_sub_path='_zh/'),
+                    Seq2SeqTranslationApp(concat_mode='2plus2', model_sub_path='_ko/'),
                 ],
                 app_names=[
                     'j_base',
