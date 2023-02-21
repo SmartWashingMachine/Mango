@@ -19,7 +19,6 @@ from gandy.utils.knn_utils.generation_mixin import GenerationMixinNumpy
 import functools
 import operator
 from datetime import datetime
-from gandy.utils.enhanced_ngram_logits import monkey_patch_model
 import numpy as np
 import logging
 
@@ -144,8 +143,6 @@ class DocRepairONNX(BaseONNXModel, GenerationMixinNumpy):
         self.load_session(onnx_path_enc, onnx_path_dec, onnx_path_dec_init)
 
         self.main_input_name = 'input_ids'
-
-        monkey_patch_model(self)
 
     def load_session(self, enc_path, dec_path, dec_init_path):
         self.encoder = OnnxDocRepairEncoder(self.create_session(enc_path))
