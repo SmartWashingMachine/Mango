@@ -52,20 +52,6 @@ class Seq2SeqTranslationApp(BaseTranslation):
         # Encode and then decode to remove the weird unknown token character.
         return prediction.replace('<pad>', '').encode('ascii', 'ignore').decode('utf-8').strip()
 
-    def p_transformer_join(self, input_texts: List[str]):
-        new_input_text = ''
-        for i, t in enumerate(input_texts):
-            new_input_text += t
-
-            # If not the last sentence, then append the appropriate SEP token.
-            if i < (len(input_texts) - 1):
-                sep_token = f' <SEP{i+1}> '
-                new_input_text += sep_token
-            else:
-                new_input_text += ' '
-
-        return new_input_text.strip()
-
     def convert_text(self, input_text):
         split = input_text.split(' <SEP> ')
 
