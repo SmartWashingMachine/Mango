@@ -92,23 +92,18 @@ class FrameInput():
         return cls(speech_bubbles=speech_bubbles)
 
 
-def unite_i_frames(i_frames: List[FrameInput], context_input: List[str]):
+def unite_i_frames(i_frame: FrameInput, context_input: List[str]):
     """
     Merge i_frame TEXT into one. No frame_bbox or speech_bboxes are merged.
     """
     speech_text = ''
 
-    for i_f in i_frames:
-        for st in i_f.untranslated_speech_text:
-            speech_text += st
+    for st in i_frame.untranslated_speech_text:
+        speech_text += st
 
     united_frame = FrameInput(frame_bbox=None, speech_bboxes=None)
-
-    if context_input is not None and len(context_input) > 0:
-        split_context = ' <SEP> '.join(context_input).strip()
-        full_input = f'{split_context} <SEP> {speech_text}'
-    else:
-        full_input = speech_text
+    texts = context_input + [speech_text]
+    full_input = p_transformer_join(texts)
 
     united_frame.add_untranslated_speech_text(full_input)
     return united_frame

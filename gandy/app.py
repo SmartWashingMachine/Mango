@@ -46,13 +46,12 @@ logger.info('Running app.')
 print('Running app.')
 
 def run_server():
-    if True: # for randy ONLY TODO
+    if True: # Only really needed for Randy.
         socketio.run(app, host='0.0.0.0')
     else:
         socketio.run(app)
 
 import gandy.book_routes
-import gandy.paraphrase_routes
 import gandy.task1_routes
 import gandy.task2_routes
 import gandy.task3_routes

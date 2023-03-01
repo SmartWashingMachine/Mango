@@ -4,6 +4,7 @@ import logging
 from typing import List
 
 from gandy.app import app, translate_pipeline, socketio
+from gandy.utils.frame_input import p_transformer_join
 
 logger = logging.getLogger('Gandy')
 
@@ -49,7 +50,7 @@ def translate_task3_background_job(images, force_words, box_id = None, with_text
             # If tgt_context_memory is -1, we assume that means that the user wants to use the prior contextual outputs as memory.
             if tgt_context_memory == '-1' and len(context_state.prev_target_text_list) > 0:
                 sep_after = context_state.prev_target_text_list
-                tgt_context_memory = ' <SEP> '.join(sep_after).strip() + ' <SEP> '
+                tgt_context_memory = p_transformer_join(sep_after)
             elif tgt_context_memory == '-1':
                 tgt_context_memory = None # Nothing in memory YET.
 

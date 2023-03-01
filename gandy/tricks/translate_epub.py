@@ -5,6 +5,10 @@ import logging
 import regex as re
 import os
 import uuid
+from flask_socketio import SocketIO
+from gandy.utils.frame_input import p_transformer_join
+from gandy.full_pipelines.base_pipeline import BasePipeline
+from typing import List
 
 logger = logging.getLogger('Gandy')
 
@@ -36,7 +40,7 @@ class DataCleaner():
 
         return [_rem_newl(l) for l in sentences]
 
-def emit_progress(socketio, j, sentences_len):
+def emit_progress(socketio: SocketIO, j, sentences_len: int):
     data = {
         'progressFrac': max(j / max(sentences_len, 1), 0.01),
         'sentsTotal': sentences_len,
@@ -44,7 +48,7 @@ def emit_progress(socketio, j, sentences_len):
     }
     socketio.emit('progress_epub', data, include_self=True)
 
-def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio = None, tgt_context_memory = None):
+def translate_epub(file_path: str, app_pipeline: BasePipeline, checkpoint_every_pages = 0, socketio: SocketIO = None, tgt_context_memory = None):
     sent_regex = re.compile(r'([.?!])([a-zA-Z0-9_])')
 
     e_book = epub.read_epub(file_path)
@@ -58,21 +62,18 @@ def translate_epub(file_path, app_pipeline, checkpoint_every_pages = 0, socketio
     context_list = [] # list of previous source texts for context.
     tgt_context_list = [] # list of previous target texts for context. Only used if tgt_context_memory == -1.
 
-    def _translate_one_sentence(t, context_list, tgt_context_list):
-        t_o = DataCleaner.replace_many(DataCleaner.strip_html([t]))[0]
+    def _translate_one_sentence(t: str, context_list: List[str], tgt_context_list: List[str]):
+        t_o: str = DataCleaner.replace_many(DataCleaner.strip_html([t]))[0]
 
         if len(context_list) > 0:
-            with_context = ' <SEP> '.join(context_list)
-            t = f'{with_context} <SEP> {t_o}'
+            t = p_transformer_join(context_list + [t_o])
 
         context_list.append(t_o)
         if len(context_list) > 3:
             context_list = context_list[1:]
 
-        # TODO: Refactor.
         if tgt_context_memory == '-1' and len(tgt_context_list) > 0:
-            with_context = ' <SEP> '.join(tgt_context_list)
-            tgt_context_memory_to_use = f'{with_context} <SEP> '
+            tgt_context_memory_to_use = p_transformer_join(tgt_context_list + [' '])
         else:
             tgt_context_memory_to_use = None
 

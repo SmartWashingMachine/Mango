@@ -1,5 +1,7 @@
 from datetime import datetime
+from typing import List
 from gandy.utils.frame_input import FrameInput, unite_i_frames
+from gandy.full_pipelines.base_app import BaseApp
 from gandy.text_detection.base_image_detection import BaseImageDetection
 from gandy.text_recognition.base_text_recognition import BaseTextRecognition
 from gandy.translation.base_translation import BaseTranslation
@@ -11,6 +13,7 @@ import logging
 from PIL.Image import Image
 from gandy.utils.replace_terms import replace_terms
 from gandy.utils.get_sep_regex import get_last_sentence
+from flask_socketio import SocketIO
 
 logger = logging.getLogger('Gandy')
 
@@ -93,7 +96,7 @@ class BasePipeline():
 
         return value
 
-    def post_app(self, socketio, task_name):
+    def post_app(self, socketio: SocketIO, task_name: str):
         end = datetime.now()
         logger.debug(f'{self.last_app_name} took {get_seconds(self.start, end)}s')
 
@@ -102,24 +105,21 @@ class BasePipeline():
             socketio.emit(f'progress_{task_name}', self.get_progress())
             socketio.sleep()
 
-    def in_app(self, socketio, task_name):
+    def in_app(self, socketio: SocketIO, task_name: str):
         self._apps_done = 0
         if socketio is not None:
             socketio.emit(f'progress_{task_name}', self.get_progress())
             socketio.sleep()
 
-    def process_task1(self, image: Image, translation_force_words = None, socketio = None, tgt_context_memory = None):
+    def process_task1(self, image: Image, translation_force_words = None, socketio: SocketIO = None, tgt_context_memory = None):
         self.in_app(socketio, 'task1')
 
         self.pre_app('text_detection')
         speech_bboxes = self.text_detection_app.begin_process(image)
         self.post_app(socketio, 'task1')
 
-        self.pre_app('linking')
-
         # NOTE: The other apps may modify the i_frame.
         i_frame = FrameInput.from_speech_bubbles(speech_bboxes)
-        self.post_app(socketio, 'task1')
 
         rgb_image = image.convert('RGB')
 
@@ -160,7 +160,9 @@ class BasePipeline():
 
         return rgb_image, is_amg
 
-    def process_task2(self, text, translation_force_words = None, tgt_context_memory = None, socketio = None, output_attentions = False):
+    def process_task2(self, text, translation_force_words = None, tgt_context_memory = None, socketio: SocketIO = None, output_attentions = False):
+        # <SEP1> <SEP2> etc... sep tokens are already added on the client / context state to text for this task.
+
         self.in_app(socketio, 'task2')
 
         self.pre_app('translation')
@@ -169,72 +171,63 @@ class BasePipeline():
         # Here, text is a str but replace_terms takes in a list.
         text = replace_terms([text], self.terms, on_side='source')[0]
 
-        translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
+        translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
             i_frames=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory,
             output_attentions=output_attentions
         )
         self.post_app(socketio, 'task2')
 
         self.pre_app('spell_correction')
-        translation_output = self.spell_correction_app.begin_process(translation_input, translation_output)
+        translation_output = self.spell_correction_app.begin_process([text], translation_output)
         self.post_app(socketio, 'task2')
 
         # Modify user terms on the target side.
         translation_output = replace_terms(translation_output, self.terms, on_side='target')
-
         return translation_output, attentions, source_tokens, target_tokens
 
-    def process_task3(self, image, translation_force_words = None, socketio = None, with_text_detect = False, context_input = None, tgt_context_memory = None):
+    def process_task3(self, image: Image, translation_force_words = None, socketio: SocketIO = None, with_text_detect = False, context_input = None, tgt_context_memory = None):
         self.in_app(socketio, 'task3')
-
-        self.pre_app('frame_detection')
-        frame_bboxes = self.frame_detection_app.begin_process(image)
-        self.post_app(socketio, 'task3')
 
         self.pre_app('text_detection')
         if with_text_detect:
             speech_bboxes = self.text_detection_app.begin_process(image)
         else:
-            speech_bboxes = self.frame_detection_app.begin_process(image)
+            im_width, im_height = image.size
+            speech_bboxes = np.array([[0, 0, im_width, im_height]]) # Scan the entire image with the OCR model.
         self.post_app(socketio, 'task3')
 
-        self.pre_app('linking')
-        # Creates a list of FrameInputs, where each item is an object containing a single frame and all of the speech bubbles inside of that frame.
-        i_frames = link_speechbubble_to_frame(speech_bboxes, frame_bboxes)
-        self.post_app(socketio, 'task3')
+        i_frame = FrameInput.from_speech_bubbles(speech_bboxes)
 
         self.pre_app('text_recognition')
-        # NOTE: This class will modify the i_frames inplace.
-        i_frames = self.text_recognition_app.begin_process(image, i_frames)
+        self.text_recognition_app.begin_process(image, i_frame)
         self.post_app(socketio, 'task3')
 
         # Task3 assumes that there is only one detected text item to translate, but sometimes there are multiple text items to translate. (Such as the case with DETR-VN).
-        # How do we handle this? Simple! After text recognition, combine all of the recognized text (no sep except for contexts) into one unit and translate it all together.
-        i_frames = [unite_i_frames(i_frames, context_input)]
+        # How do we handle this? Simple! After text recognition, combine all of the recognized text into one unit and translate it all together.
+        i_frame = unite_i_frames(i_frame, context_input)
 
         # Modify user terms on the source side.
-        for i_f in i_frames:
-            i_f.replace_terms(self.terms)
+        i_frame.replace_terms_source_side(self.terms)
 
         self.pre_app('translation')
-        translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
+        translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
+            i_frame=i_frame, force_words=translation_force_words, tgt_context_memory=tgt_context_memory
+        )
         self.post_app(socketio, 'task3')
 
         self.pre_app('spell_correction')
-        translation_output = self.spell_correction_app.begin_process(translation_input=translation_input, translation_output=translation_output)
+        translation_output = self.spell_correction_app.begin_process(translation_input=i_frame.get_untranslated_sentences(), translation_output=translation_output)
         self.post_app(socketio, 'task3')
 
+        # Add to i_frame.
+        i_frame.add_translated_sentences(translation_output)
         # Modify user terms on the target side.
-        translation_output = replace_terms(translation_output, self.terms, on_side='target')
+        i_frame.replace_terms_target_side(self.terms)
 
-        source_texts = []
-        for i_f in i_frames:
-            source_texts.extend(i_f.untranslated_speech_text)
-
-        return translation_output, source_texts
+        return translation_output, i_frame.get_untranslated_sentences()
 
 class SwitchApp():
-    def __init__(self, apps, app_names, default_idx = 0):
+    def __init__(self, apps: List[BaseApp], app_names: List[str], default_idx = 0):
         """
         Some of our apps (the individual pipes) in a pipeline will want to be able to be switched around at runtime.
 
