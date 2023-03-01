@@ -153,7 +153,7 @@ class BasePipeline():
         self.post_app(socketio, 'task1')
 
         self.pre_app('image_redrawing')
-        rgb_image = self.image_redrawing_app.begin_process(rgb_image, i_frame, translation_output)
+        rgb_image = self.image_redrawing_app.begin_process(rgb_image, i_frame)
         self.post_app(socketio, 'task1')
 
         is_amg = isinstance(rgb_image, dict) # AMG convert app returns a dict rather than an image directly.

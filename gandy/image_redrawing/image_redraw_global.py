@@ -1,16 +1,17 @@
-from PIL import ImageFont, ImageDraw
+from PIL import ImageFont, ImageDraw, Image
+from typing import List
 import textwrap
 from math import floor
 from string import ascii_letters
-
 from gandy.image_redrawing.base_image_redraw import BaseImageRedraw
+from gandy.utils.frame_input import FrameInput
 
-MAX_FONT_SIZE = 30
-MIN_FONT_SIZE = 11
+MAX_FONT_SIZE = 32
+MIN_FONT_SIZE = 14
 
 """
 
-Uses two font sizes for the entire image, and does not break characters in words.
+Uses multiple font sizes for the entire image, and does not break characters in words.
 
 Small text regions (e.g: SFX) have their own font sizes.
 One font size is determined for normal-sized text regions.
@@ -66,7 +67,7 @@ class ImageRedrawGlobalApp(BaseImageRedraw):
         while (best_size is None or (best_size[0] > width or best_size[1] > height)):
             candidate_font_size = best_font_size
 
-            font = ImageFont.truetype('resources/font.otf', candidate_font_size, encoding='unic')
+            font = ImageFont.truetype('resources/fonts/font.otf', candidate_font_size, encoding='unic')
 
             avg_char_width = sum(font.getsize(char)[0] for char in ascii_letters) / len(ascii_letters)
             candidate_max_char_count = max(1, int(width / avg_char_width)) # Max true chars before it overflows the width.
@@ -98,7 +99,7 @@ class ImageRedrawGlobalApp(BaseImageRedraw):
 
         return last_one_fits, best_font_size, max_char_count, best_size
 
-    def find_best_global_font_sizes(self, frame, texts, i):
+    def find_best_global_font_sizes(self, frame: FrameInput, texts: List[str], i: int):
         best_font_size = MAX_FONT_SIZE
         text_details = []
 
@@ -145,7 +146,7 @@ class ImageRedrawGlobalApp(BaseImageRedraw):
             area = width * height
 
             # MEAN_FACTOR = 0.7
-            #MEAN_FACTOR = 0.55
+            # MEAN_FACTOR = 0.55
             MEAN_FACTOR = 0.65
             if area <= (mean_area * MEAN_FACTOR):
                 best_font_size_to_use = best_font_size
@@ -167,20 +168,19 @@ class ImageRedrawGlobalApp(BaseImageRedraw):
         # Return i (integer) and a list of list of wrapped texts with their left and top positions and best font size.
         return i, text_details
 
-    def process(self, image, i_frames, texts, debug = False, font_size=6, adaptative_font_size = True):
+    def process(self, image: Image.Image, i_frame: FrameInput):
         new_image = image.copy()
 
         draw = ImageDraw.Draw(new_image)
 
         i = 0
-        for frame in i_frames:
-            i, text_details = self.find_best_global_font_sizes(frame, texts, i)
+        i, text_details = self.find_best_global_font_sizes(i_frame, i_frame.translated_sentences, i)
 
-            for td in text_details:
-                # td = A list containing [wrappedtextstring, leftinteger, topinteger, fontsizeinteger]
-                best_font_size = td[3]
-                font = ImageFont.truetype('resources/font.otf', best_font_size, encoding='unic')
+        for td in text_details:
+            # td = A list containing [wrappedtextstring, leftinteger, topinteger, fontsizeinteger]
+            best_font_size = td[3]
+            font = ImageFont.truetype('resources/fonts/font.otf', best_font_size, encoding='unic')
 
-                draw.multiline_text((td[1], td[2]), td[0], '#000', font, align='center', stroke_fill='white', stroke_width=max(2, best_font_size // 7))
+            draw.multiline_text((td[1], td[2]), td[0], '#000', font, align='center', stroke_fill='white', stroke_width=max(2, best_font_size // 7))
 
         return new_image

@@ -4,6 +4,7 @@ logger = logging.getLogger('Gandy')
 import numpy as np
 from math import floor
 from PIL import Image as PILImage
+from gandy.utils.frame_input import FrameInput
 
 from gandy.image_redrawing.image_redraw_global import ImageRedrawGlobalApp
 
@@ -87,7 +88,7 @@ class NeighborRedrawApp(ImageRedrawGlobalApp):
 
         return a_x1 < 0 or a_y1 < 0 or a_x2 >= width or a_y2 >= height
 
-    def process(self, image, i_frames, texts, debug = False, font_size=6, adaptative_font_size = True):
+    def process(self, image: PILImage.Image, i_frame: FrameInput):
         """
         Attempts to draw translated text NEAR ("neighboring") the original text.
 
@@ -115,96 +116,96 @@ class NeighborRedrawApp(ImageRedrawGlobalApp):
 
         k = 0
 
-        for frame in i_frames:
-            s_bboxes = frame.speech_bboxes
+        s_bboxes = i_frame.speech_bboxes
+        texts = i_frame.translated_sentences
 
-            for j, s_bbox in enumerate(s_bboxes):
-                s_bb = s_bbox
+        for j, s_bbox in enumerate(s_bboxes):
+            s_bb = s_bbox
 
-                text = texts[k]
-                if k >= len(texts):
-                    print('WARNING: repaint_image has more speech bubbles than texts. Some speech bubbles were left untouched.')
+            text = texts[k]
+            if k >= len(texts):
+                print('WARNING: repaint_image has more speech bubbles than texts. Some speech bubbles were left untouched.')
+                break
+
+            k += 1
+
+            if isinstance(text, list):
+                print('WARNING: texts should be a list of strings. Detected list of lists:')
+                print('Taking the first element out of the list and assuming it is a string.')
+                text = text[0]
+                if not text:
+                    print('No item found in list. Skipping.')
+                    continue
+
+            left = floor(s_bb[0])
+            top = floor(s_bb[1])
+            width = floor(s_bb[2] - s_bb[0])
+            height = floor(s_bb[3] - s_bb[1])
+
+            neighbor_width = int(width * 1.5)
+
+            did_finally_succeed = False
+
+            horz_margin = initial_horz_margin
+            vert_margin = initial_vert_margin
+            # Only a few tries are given.
+            for _ in range(4):
+                if did_finally_succeed:
                     break
 
-                k += 1
+                directions = initial_directions.copy()
+                direction_probs = initial_direction_probs.copy()
 
-                if isinstance(text, list):
-                    print('WARNING: texts should be a list of strings. Detected list of lists:')
-                    print('Taking the first element out of the list and assuming it is a string.')
-                    text = text[0]
-                    if not text:
-                        print('No item found in list. Skipping.')
-                        continue
+                # Attempt to go through every direction, until finding a valid match.
+                while len(directions) > 0:
+                    picked_direction_val = np.random.choice(directions, p=direction_probs)
+                    picked_direction_idx = directions.index(picked_direction_val)
 
-                left = floor(s_bb[0])
-                top = floor(s_bb[1])
-                width = floor(s_bb[2] - s_bb[0])
-                height = floor(s_bb[3] - s_bb[1])
+                    # Remove picked direction from available list.
+                    directions.pop(picked_direction_idx)
+                    direction_probs.pop(picked_direction_idx)
 
-                neighbor_width = int(width * 1.5)
+                    # Reweight probs equally.
+                    missing_prob = 1.0 - sum(direction_probs)
+                    direction_probs = [v + (missing_prob / len(direction_probs)) for v in direction_probs]
 
-                did_finally_succeed = False
+                    # Set anchor points depending on the picked direction.
+                    neighbor_left, neighbor_top = self.get_anchor_points(
+                        picked_direction_val,
+                        top,
+                        left,
+                        width,
+                        height,
+                        horz_margin,
+                        vert_margin,
+                        neighbor_width,
+                    )
 
-                horz_margin = initial_horz_margin
-                vert_margin = initial_vert_margin
-                # Only a few tries are given.
-                for _ in range(4):
-                    if did_finally_succeed:
+                    # x1. y1. x2. y2
+                    neighbor_box = (
+                        neighbor_left,
+                        neighbor_top,
+                        neighbor_left + neighbor_width,
+                        neighbor_top + height, # Neighbor has same width as the original box.
+                    )
+
+                    # PIL images are not subscriptable. Must convert to NP array before passing it to get_image_mean_bg and does_overflow.
+                    np_img = np.array(new_image)
+
+                    does_overlap = self.box_overlaps(neighbor_box, new_boxes_list)
+                    does_overflow = self.does_overflow(neighbor_box, np_img)
+                    if not does_overlap and not does_overflow:
+                        # Success!
+                        # Update the box with it's new position.
+                        i_frame.speech_bboxes[j] = neighbor_box
+
+                        did_finally_succeed = True
                         break
 
-                    directions = initial_directions.copy()
-                    direction_probs = initial_direction_probs.copy()
+                # If it did not finally succeed in drawing text, then the margins are reduced.
+                horz_margin = int(horz_margin + (initial_horz_margin * 2))
+                vert_margin = int(vert_margin + (initial_vert_margin * 2))
 
-                    # Attempt to go through every direction, until finding a valid match.
-                    while len(directions) > 0:
-                        picked_direction_val = np.random.choice(directions, p=direction_probs)
-                        picked_direction_idx = directions.index(picked_direction_val)
+            # If it couldn't draw the text on any direction even with reduced margins, then it will just use the default position (overlayed on text).
 
-                        # Remove picked direction from available list.
-                        directions.pop(picked_direction_idx)
-                        direction_probs.pop(picked_direction_idx)
-
-                        # Reweight probs equally.
-                        missing_prob = 1.0 - sum(direction_probs)
-                        direction_probs = [v + (missing_prob / len(direction_probs)) for v in direction_probs]
-
-                        # Set anchor points depending on the picked direction.
-                        neighbor_left, neighbor_top = self.get_anchor_points(
-                            picked_direction_val,
-                            top,
-                            left,
-                            width,
-                            height,
-                            horz_margin,
-                            vert_margin,
-                            neighbor_width,
-                        )
-
-                        # x1. y1. x2. y2
-                        neighbor_box = (
-                            neighbor_left,
-                            neighbor_top,
-                            neighbor_left + neighbor_width,
-                            neighbor_top + height, # Neighbor has same width as the original box.
-                        )
-
-                        # PIL images are not subscriptable. Must convert to NP array before passing it to get_image_mean_bg and does_overflow.
-                        np_img = np.array(new_image)
-
-                        does_overlap = self.box_overlaps(neighbor_box, new_boxes_list)
-                        does_overflow = self.does_overflow(neighbor_box, np_img)
-                        if not does_overlap and not does_overflow:
-                            # Success!
-                            # Update the box with it's new position.
-                            frame.speech_bboxes[j] = neighbor_box
-
-                            did_finally_succeed = True
-                            break
-
-                    # If it did not finally succeed in drawing text, then the margins are reduced.
-                    horz_margin = int(horz_margin + (initial_horz_margin * 2))
-                    vert_margin = int(vert_margin + (initial_vert_margin * 2))
-
-                # If it couldn't draw the text on any direction even with reduced margins, then it will just use the default position (overlayed on text).
-
-        return super().process(image, i_frames, texts, debug, font_size, adaptative_font_size)
+        return super().process(image, i_frame)

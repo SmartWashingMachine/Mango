@@ -1,8 +1,8 @@
-from PIL import ImageFont, ImageDraw
+from PIL import ImageFont, ImageDraw, Image
 import textwrap
 from math import floor
 from string import ascii_letters
-
+from gandy.utils.frame_input import FrameInput
 from gandy.image_redrawing.base_image_redraw import BaseImageRedraw
 
 # "What happened to V1?" We don't talk about V1.
@@ -87,85 +87,82 @@ class ImageRedrawV2App(BaseImageRedraw):
 
         return last_one_fits, best_font_size, max_char_count, best_size
 
-    def process(self, image, i_frames, texts, debug = False, font_size=6, adaptative_font_size = True):
+    def process(self, image: Image.Image, i_frame: FrameInput):
         new_image = image.copy()
 
         draw = ImageDraw.Draw(new_image)
 
-        i = 0
-        for frame in i_frames:
-            s_bboxes = frame.speech_bboxes
+        s_bboxes = i_frame.speech_bboxes
+        texts = i_frame.translated_sentences
 
-            for j, s_bbox in enumerate(s_bboxes):
-                s_bb = s_bbox
+        for i, s_bbox in enumerate(s_bboxes):
+            s_bb = s_bbox
 
-                if i >= len(texts):
-                    print('WARNING: repaint_image has more speech bubbles than texts. Some speech bubbles were left untouched.')
-                    break
+            if i >= len(texts):
+                print('WARNING: repaint_image has more speech bubbles than texts. Some speech bubbles were left untouched.')
+                break
 
-                text = texts[i]
+            text = texts[i]
 
-                if isinstance(text, list):
-                    print('WARNING: texts should be a list of strings. Detected list of lists:')
-                    print('Taking the first element out of the list and assuming it is a string.')
-                    text = text[0]
-                    if not text:
-                        print('No item found in list. Skipping.')
-                        continue
+            if isinstance(text, list):
+                print('WARNING: texts should be a list of strings. Detected list of lists:')
+                print('Taking the first element out of the list and assuming it is a string.')
+                text = text[0]
+                if not text:
+                    print('No item found in list. Skipping.')
+                    continue
 
-                text = self.uppercase_text(text)
+            text = self.uppercase_text(text)
 
-                left = floor(s_bb[0])
-                top = floor(s_bb[1])
-                height = floor(s_bb[3] - s_bb[1])
+            left = floor(s_bb[0])
+            top = floor(s_bb[1])
+            height = floor(s_bb[3] - s_bb[1])
 
-                text_will_fit, best_font_size, max_chars_per_line, (best_width, best_height) = self.compute_font_metrics(s_bb, text)
+            text_will_fit, best_font_size, max_chars_per_line, (best_width, best_height) = self.compute_font_metrics(s_bb, text)
 
-                if not text_will_fit:
-                    # Failed on smallest possible font size - split up to 5 words until it fits.
-                    for k in range(5):
-                        words = text.split(' ')
-                        char_count = [len(w) for w in words]
-                        longest_word_idx = char_count.index(max(char_count))
+            if not text_will_fit:
+                # Failed on smallest possible font size - split up to 5 words until it fits.
+                for k in range(5):
+                    words = text.split(' ')
+                    char_count = [len(w) for w in words]
+                    longest_word_idx = char_count.index(max(char_count))
 
-                        new_words = []
+                    new_words = []
 
-                        cant_continue = False
+                    cant_continue = False
 
-                        for w_idx, w in enumerate(words):
-                            if w_idx == longest_word_idx and len(w) > 1:
-                                first_half = w[:len(w) // 2]
-                                second_half = w[len(w) // 2:]
-                                new_words.append(first_half)
-                                new_words.append(second_half)
-                            else:
-                                new_words.append(w)
-                                cant_continue = True
+                    for w_idx, w in enumerate(words):
+                        if w_idx == longest_word_idx and len(w) > 1:
+                            first_half = w[:len(w) // 2]
+                            second_half = w[len(w) // 2:]
+                            new_words.append(first_half)
+                            new_words.append(second_half)
+                        else:
+                            new_words.append(w)
+                            cant_continue = True
 
-                        text = ' '.join(new_words).strip()
-    
-                        text_will_fit, best_font_size, max_chars_per_line, (best_width, best_height) = self.compute_font_metrics(s_bb, text)
-                        if text_will_fit or cant_continue:
-                            break
+                    text = ' '.join(new_words).strip()
 
-                font = ImageFont.truetype('resources/font.otf', best_font_size, encoding='unic')
-                wrapped_text = self.wrap_text(text, max_chars_per_line)
-                # See: https://github.com/python-pillow/Pillow/issues/5669
+                    text_will_fit, best_font_size, max_chars_per_line, (best_width, best_height) = self.compute_font_metrics(s_bb, text)
+                    if text_will_fit or cant_continue:
+                        break
 
-                start_top = (height - best_height) // 2
-                # start_left = (left - best_width) // 2
+            font = ImageFont.truetype('resources/font.otf', best_font_size, encoding='unic')
+            wrapped_text = self.wrap_text(text, max_chars_per_line)
+            # See: https://github.com/python-pillow/Pillow/issues/5669
 
-                #stroke_offset = 1
-                #x = left
-                #y = top + start_top
-                #shadowcolor = '#FFFFFF'
-                #draw.multiline_text((x-stroke_offset, y), wrapped_text, font=font, fill=shadowcolor, align='center')
-                #draw.multiline_text((x+stroke_offset, y), wrapped_text, font=font, fill=shadowcolor, align='center')
-                #draw.multiline_text((x, y-stroke_offset), wrapped_text, font=font, fill=shadowcolor, align='center')
-                #draw.multiline_text((x, y+stroke_offset), wrapped_text, font=font, fill=shadowcolor, align='center')
+            start_top = (height - best_height) // 2
+            # start_left = (left - best_width) // 2
 
-                draw.multiline_text((left, top + start_top), wrapped_text, '#000', font, align='center', stroke_fill='white', stroke_width=max(2, best_font_size // 7))
+            #stroke_offset = 1
+            #x = left
+            #y = top + start_top
+            #shadowcolor = '#FFFFFF'
+            #draw.multiline_text((x-stroke_offset, y), wrapped_text, font=font, fill=shadowcolor, align='center')
+            #draw.multiline_text((x+stroke_offset, y), wrapped_text, font=font, fill=shadowcolor, align='center')
+            #draw.multiline_text((x, y-stroke_offset), wrapped_text, font=font, fill=shadowcolor, align='center')
+            #draw.multiline_text((x, y+stroke_offset), wrapped_text, font=font, fill=shadowcolor, align='center')
 
-                i += 1
+            draw.multiline_text((left, top + start_top), wrapped_text, '#000', font, align='center', stroke_fill='white', stroke_width=max(2, best_font_size // 7))
 
         return new_image
