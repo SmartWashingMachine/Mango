@@ -3,7 +3,7 @@ import logging
 
 from gandy.app import app, translate_pipeline, socketio
 from gandy.task3_routes import context_state
-from gandy.utils.get_sep_regex import get_last_sentence
+from gandy.utils.frame_input import p_transformer_join
 
 logger = logging.getLogger('Gandy')
 
@@ -20,22 +20,18 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
     }
 
     if box_id is not None:
-        # This is only used for clipboard copying on the frontend with the OCR box (normal OCR box method is task3). Context is stored on the server FOR NOW.
-
-        logger.debug('Using box context.')
         # Hacky for now. For OCR boxes. TODO
-        li = context_state.prev_source_text_list + [text]
-        text = ' <SEP> '.join(li).strip()
-
-        context_state.update_source_list(text)
+        # This is only used for clipboard copying on the frontend with the OCR box (normal OCR box method is task3). Context is stored on the server FOR NOW.
+        logger.debug('Using box context.')
+        context_state.update_source_list(text) # text initially has no context.
+        text = p_transformer_join(context_state.prev_source_text_list + [text])
 
         socketio.emit('begin_translating_task2', {}, include_self=True)
         socketio.sleep()
 
         # If tgt_context_memory is -1, we assume that means that the user wants to use the prior contextual outputs as memory.
         if tgt_context_memory == '-1' and len(context_state.prev_target_text_list) > 0:
-            sep_after = context_state.prev_target_text_list
-            tgt_context_memory = ' <SEP> '.join(sep_after).strip() + ' <SEP> '
+            tgt_context_memory = p_transformer_join(context_state.prev_target_text_list + [' '])
         elif tgt_context_memory == '-1':
             tgt_context_memory = None # Nothing in memory YET.
     try:
@@ -53,8 +49,7 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
         output['targetTokens'] = target_tokens
 
         if box_id is not None:
-            last_sentence = get_last_sentence(new_text[-1])
-            context_state.update_target_list(last_sentence)
+            context_state.update_target_list(new_text)
 
         socketio.emit('done_translating_task2', output, include_self=True)
     except Exception:

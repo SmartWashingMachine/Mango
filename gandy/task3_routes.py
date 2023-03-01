@@ -5,6 +5,7 @@ from typing import List
 
 from gandy.app import app, translate_pipeline, socketio
 from gandy.utils.frame_input import p_transformer_join
+from gandy.utils.get_sep_regex import get_last_sentence
 
 logger = logging.getLogger('Gandy')
 
@@ -18,7 +19,7 @@ class ContextState():
         self.prev_target_text_list = []
 
     def update_list(self, text_list: List[str], text: str):
-        text_list.append(text.split('<SEP>')[-1].strip())
+        text_list.append(text)
         if len(text_list) > 3:
             text_list = text_list[1:]
 
@@ -59,7 +60,7 @@ def translate_task3_background_job(images, force_words, box_id = None, with_text
                 tgt_context_memory=tgt_context_memory,
             )
 
-            last_source = source_texts[-1].split('<SEP>')[-1].strip()
+            last_source = get_last_sentence(source_texts[-1])
             context_state.update_source_list(last_source)
             logger.debug(f'Task3 is updating server-side-context with item: {last_source}')
 
