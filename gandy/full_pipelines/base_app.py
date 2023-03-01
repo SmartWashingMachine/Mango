@@ -1,5 +1,6 @@
+from abc import ABC, abstractmethod
 
-class BaseApp():
+class BaseApp(ABC):
     def __init__(self, preload = False):
         """
         All apps inherit from BaseApp. This BaseApp will "lazy load" the required model when the process method is called for the first time.
@@ -24,6 +25,7 @@ class BaseApp():
         """
         self.loaded = True
 
+    @abstractmethod
     def process(self, *args, **kwargs):
         raise RuntimeError('App .process method was not implemented.')
 

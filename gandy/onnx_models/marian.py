@@ -23,6 +23,7 @@ import operator
 from datetime import datetime
 import numpy as np
 import logging
+from gandy.utils.clean_text import clean_text
 
 logger = logging.getLogger('Gandy')
 
@@ -468,7 +469,7 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
         self.decoder_init = OnnxMarianDecoderInit(self.create_session(dec_init_path))
 
     def preprocess(self, inp):
-        inp_text = inp['text']
+        inp_text = clean_text(inp)
 
         x_dict = self.tokenizer([inp_text], return_tensors='np', max_length=512, truncation=True)
 
@@ -584,7 +585,6 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
 
     def map_attention(self, cross_attentions, per_beam_idx):
         # Map the attentions returned by huggingface.
-        # Currently only used for neighbor model. Quite difficult to get the normal model to return it. TODO
 
         # Ignore this - docs lie. cross_attentions is given per beam, so we need to get the best beam idx per token.
         # beam_idx = 0 # According to docs, it's just batch size no beams... so since batch is 1 we just pick the 1st.

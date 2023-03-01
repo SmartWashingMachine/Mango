@@ -1,11 +1,14 @@
 from datetime import datetime
-from gandy.spell_correction.base_spell_correction import BaseSpellCorrection
-from gandy.utils.frame_input import link_speechbubble_to_frame, unite_i_frames
+from gandy.utils.frame_input import FrameInput, unite_i_frames
 from gandy.text_detection.base_image_detection import BaseImageDetection
-from gandy.utils.split_text import split_text
+from gandy.text_recognition.base_text_recognition import BaseTextRecognition
+from gandy.translation.base_translation import BaseTranslation
+from gandy.spell_correction.base_spell_correction import BaseSpellCorrection
+from gandy.image_cleaning.base_image_clean import BaseImageClean
+from gandy.image_redrawing.base_image_redraw import BaseImageRedraw
 import numpy as np
 import logging
-import re
+from PIL.Image import Image
 from gandy.utils.replace_terms import replace_terms
 from gandy.utils.get_sep_regex import get_last_sentence
 
@@ -35,20 +38,13 @@ class DefaultSpellCorrectionApp(BaseSpellCorrection):
 class BasePipeline():
     def __init__(
         self,
-        frame_detection_app,
-        text_detection_app,
-        text_recognition_app,
-        translation_app,
-        spell_correction_app,
-        image_cleaning_app,
-        image_redrawing_app,
+        text_detection_app: BaseImageDetection,
+        text_recognition_app: BaseTextRecognition,
+        translation_app: BaseTranslation,
+        spell_correction_app: BaseSpellCorrection,
+        image_cleaning_app: BaseImageClean,
+        image_redrawing_app: BaseImageRedraw,
     ):
-        if frame_detection_app is None:
-            # If no frame detection app is given, then a default function is given which provides the bbox of the entire image.
-            self.frame_detection_app = DefaultFrameDetectionApp()
-        else:
-            self.frame_detection_app = frame_detection_app
-
         if text_detection_app is None:
             raise RuntimeError('text_detection_app must be given.')
         else:
@@ -65,8 +61,7 @@ class BasePipeline():
             self.translation_app = translation_app
 
         if spell_correction_app is None:
-            # Identity function.
-            self.spell_correction_app = DefaultSpellCorrectionApp()
+            raise RuntimeError('spell_correction_app must be given.')
         else:
             self.spell_correction_app = spell_correction_app
 
@@ -80,7 +75,7 @@ class BasePipeline():
         else:
             self.image_redrawing_app = image_redrawing_app
 
-        self.n_apps = 7
+        self.n_apps = 6
         self._apps_done = 0
 
         # This is a user defined list of terms to replace/filter.
@@ -113,73 +108,52 @@ class BasePipeline():
             socketio.emit(f'progress_{task_name}', self.get_progress())
             socketio.sleep()
 
-    def process_simulate(self, image, translation_force_words = None, socketio=None):
-        self.in_app(socketio, 'simulate')
-
-        self.pre_app('DEBUG')
-        socketio.sleep(1)
-        self.post_app(socketio, 'simulate')
-
-        self.pre_app('DEBUG')
-        socketio.sleep(1)
-        self.post_app(socketio, 'simulate')
-
-        self.pre_app('DEBUG')
-        socketio.sleep(3)
-        self.post_app(socketio, 'simulate')
-
-        self.pre_app('DEBUG')
-        socketio.sleep(2)
-        self.post_app(socketio, 'simulate')
-
-        return image
-
-    def process_task1(self, image, translation_force_words = None, socketio = None, tgt_context_memory = None):
+    def process_task1(self, image: Image, translation_force_words = None, socketio = None, tgt_context_memory = None):
         self.in_app(socketio, 'task1')
-
-        self.pre_app('frame_detection')
-        frame_bboxes = self.frame_detection_app.begin_process(image)
-        self.post_app(socketio, 'task1')
 
         self.pre_app('text_detection')
         speech_bboxes = self.text_detection_app.begin_process(image)
         self.post_app(socketio, 'task1')
 
         self.pre_app('linking')
-        # Creates a list of FrameInputs, where each item is an object containing a single frame and all of the speech bubbles inside of that frame.
-        i_frames = link_speechbubble_to_frame(speech_bboxes, frame_bboxes)
+
+        # NOTE: The other apps may modify the i_frame.
+        i_frame = FrameInput.from_speech_bubbles(speech_bboxes)
         self.post_app(socketio, 'task1')
 
+        rgb_image = image.convert('RGB')
+
         self.pre_app('text_recognition')
-        # NOTE: This class will modify the i_frames inplace.
-        i_frames = self.text_recognition_app.begin_process(image.convert('RGB'), i_frames)
+        self.text_recognition_app.begin_process(rgb_image, i_frame)
         self.post_app(socketio, 'task1')
 
         # Modify user terms on the source side.
-        for i_f in i_frames:
-            i_f.replace_terms(self.terms)
+        i_frame.replace_terms_source_side(self.terms)
 
         # Each translation_output will contain the contextual sentences too in the output strings.
         self.pre_app('translation')
-
-        translation_input, translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(i_frames=i_frames, force_words=translation_force_words, tgt_context_memory=tgt_context_memory)
+        translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
+            i_frame=i_frame, force_words=translation_force_words, tgt_context_memory=tgt_context_memory,
+        )
         self.post_app(socketio, 'task1')
+        input_sentences = i_frame.get_untranslated_sentences()
 
         # But the spelling correction apps will take care of removing any contextual sentences from the final output.
         self.pre_app('spell_correction')
-        translation_output = self.spell_correction_app.begin_process(translation_input, translation_output)
+        translation_output = self.spell_correction_app.begin_process(input_sentences, translation_output)
         self.post_app(socketio, 'task1')
 
+        # Add to i_frame.
+        i_frame.add_translated_sentences(translation_output)
         # Modify user terms on the target side.
-        translation_output = replace_terms(translation_output, self.terms, on_side='target')
+        i_frame.replace_terms_target_side(self.terms)
 
         self.pre_app('image_cleaning')
-        rgb_image = image.convert('RGB')
-        rgb_image = self.image_cleaning_app.begin_process(rgb_image, i_frames)
+        rgb_image = self.image_cleaning_app.begin_process(rgb_image, i_frame)
         self.post_app(socketio, 'task1')
 
         self.pre_app('image_redrawing')
-        rgb_image = self.image_redrawing_app.begin_process(rgb_image, i_frames, translation_output)
+        rgb_image = self.image_redrawing_app.begin_process(rgb_image, i_frame, translation_output)
         self.post_app(socketio, 'task1')
 
         is_amg = isinstance(rgb_image, dict) # AMG convert app returns a dict rather than an image directly.

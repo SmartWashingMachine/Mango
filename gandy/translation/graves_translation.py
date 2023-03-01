@@ -59,10 +59,8 @@ class GravesCaching():
             new_dist = d * temperature
             new_distances.append(new_dist)
 
-        # Old: new_distances = torch.tensor(new_distances)
         new_distances = np.array(new_distances)
 
-        # Old: normalized = torch.softmax(new_distances, dim=0)
         normalized = softmax(new_distances, axis=0)
 
         knn_dist = np.zeros_like(mt_dist)

@@ -1,16 +1,18 @@
 import albumentations as A
 import numpy as np
-
+from gandy.utils.frame_input import FrameInput
+from PIL.Image import Image
 from gandy.text_recognition.base_text_recognition import BaseTextRecognition
 import albumentations as A
 import numpy as np
 from gandy.onnx_models.tr_ocr import OnnxVision
+
 import logging
 logger = logging.getLogger('Gandy')
 
 class TrOCRTextRecognitionApp(BaseTextRecognition):
     def __init__(self, model_sub_path = '/', has_proj = True):
-        super().__init__(preload=False) # NOTE: Preload was enabled for testing. Can re-enable later if needed.
+        super().__init__()
 
         self.transform = A.Compose([
             # NOTE: Currently worse with these two, but may do well in the future.
@@ -43,18 +45,15 @@ class TrOCRTextRecognitionApp(BaseTextRecognition):
         output = self.model.full_pipe(cropped_image)
         return output
 
-    def process(self, image, i_frames):
-        for i_frame in i_frames:
-            for bbox in i_frame.speech_bboxes:
-                cropped_image = image.crop(bbox)
+    def process(self, image: Image, i_frame: FrameInput):
+        for bbox in i_frame.speech_bboxes:
+            cropped_image = image.crop(bbox)
 
-                cropped_image = np.array(cropped_image)
+            cropped_image = np.array(cropped_image)
 
-                logger.debug(f'Scanning a text region... - IMG SHAPE: {cropped_image.shape}')
-                text = self.process_one_image(cropped_image)
-                logger.debug(f'Done scanning a text region! - IMG SHAPE: {cropped_image.shape}')
-                logger.debug(f'Found text: {text}')
+            logger.debug(f'Scanning a text region... - IMG SHAPE: {cropped_image.shape}')
+            text = self.process_one_image(cropped_image)
+            logger.debug(f'Done scanning a text region! - IMG SHAPE: {cropped_image.shape}')
+            logger.debug(f'Found text: {text}')
 
-                i_frame.add_untranslated_speech_text(text)
-
-        return i_frames
+            i_frame.add_untranslated_speech_text(text)

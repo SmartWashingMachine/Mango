@@ -2,23 +2,20 @@ from PIL import ImageDraw, Image
 import cv2
 import numpy as np
 from gandy.image_cleaning.base_image_clean import BaseImageClean
+from gandy.utils.frame_input import FrameInput
 
 class TeleaImageCleanApp(BaseImageClean):
     def __init__(self):
         super().__init__()
 
-    def clean_image(self, image, i_frames):
-        all_speech_bboxes = []
-        for f in i_frames:
-            all_speech_bboxes.extend(f.speech_bboxes)
-
+    def clean_image(self, image: Image.Image, i_frames: FrameInput):
         input_image = image.copy()
         input_width, input_height = input_image.size
 
         # mode=L refers to grayscale.
         mask_image = Image.new(mode='L', size=(input_width, input_height)) # The image will have a black background by default.
         mask_draw = ImageDraw.Draw(mask_image)
-        for s in all_speech_bboxes:
+        for s in i_frames.speech_bboxes:
             mask_draw.rectangle(s, outline=255, fill=255, width=1)
 
         input_image = np.asarray(input_image)

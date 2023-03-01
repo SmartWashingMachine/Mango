@@ -23,7 +23,6 @@ from gandy.spell_correction.doc_repair_spell_correction import DocRepairApp
 class AdvancedPipeline(BasePipeline):
     def __init__(self):
         super().__init__(
-            frame_detection_app=None,
             text_detection_app=SwitchApp(
                 apps=[
                     DETRGBigImageDetectionApp(),

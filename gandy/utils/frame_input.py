@@ -2,6 +2,20 @@ from typing import List, Dict
 from gandy.utils.replace_terms import replace_terms
 from gandy.utils.speech_bubble import SpeechBubble
 
+def p_transformer_join(input_texts: List[str]):
+    new_input_text = ''
+    for i, t in enumerate(input_texts):
+        new_input_text += t
+
+        # If not the last sentence, then append the appropriate SEP token.
+        if i < (len(input_texts) - 1):
+            sep_token = f' <SEP{i+1}> '
+            new_input_text += sep_token
+        else:
+            new_input_text += ' '
+
+    return new_input_text
+
 class FrameInput():
     """
     A class containing all of the untranslated text bounding regions in an image ("frame") as well as their untranslated and translated text.
@@ -15,6 +29,9 @@ class FrameInput():
 
         # A string list of translated sentences from the post-editing model postprocessed outputs.
         self.translated_sentences = []
+
+        # Cached from get_untranslated_sentences to avoid repeated computation.
+        self._untranslated_sentences = None
 
     def replace_terms_source_side(self, terms: List[Dict]):
         """
@@ -31,37 +48,41 @@ class FrameInput():
     def add_untranslated_speech_text(self, s):
         self.untranslated_speech_text.append(s)
 
-    def add_translated_sentence(self, s):
+    def add_translated_sentence(self, s: str):
         self.translated_sentences.append(s)
 
-    def _p_transformer_join(self, input_texts: List[str]):
-        new_input_text = ''
-        for i, t in enumerate(input_texts):
-            new_input_text += t
+    def add_translated_sentences(self, slist: List[str]):
+        self.translated_sentences.extend(slist)
 
-            # If not the last sentence, then append the appropriate SEP token.
-            if i < (len(input_texts) - 1):
-                sep_token = f' <SEP{i+1}> '
-                new_input_text += sep_token
-            else:
-                new_input_text += ' '
-
-        return new_input_text
-
-    def get_untranslated_sentences(self, texts, max_context):
+    def get_untranslated_sentences(self, max_context = None):
         """
         Retrieve the proper text inputs for the translation models with prior sentences used as context.
         """
+        if self._untranslated_sentences is not None:
+            return self._untranslated_sentences
+        if max_context is None:
+            raise RuntimeError('max_context must be provided when retrieving untranslated sentences for the first time.')
 
-        if len(texts) <= max_context or max_context == -1:
-            input_text = texts
-        else:
-            input_text = texts[-(max_context):]
+        sentences: List[str] = []
+        if len(self.untranslated_speech_text) == 0:
+            return sentences
 
-        # Concat sentences into a string in the form "A <SEP1> B <SEP2> C <SEP3> ... <SEPN> N"
-        speech = self._p_transformer_join(input_text)
+        for i in range(len(self.untranslated_speech_text)):
+            # rolling window.
+            texts = self.untranslated_speech_text[:i + 1]
 
-        return speech.strip()
+            if len(texts) <= max_context or max_context == -1:
+                input_text = texts
+            else:
+                input_text = texts[-(max_context):]
+
+                # Concat sentences into a string in the form "A <SEP1> B <SEP2> C <SEP3> ... <SEPN> N"
+                speech = p_transformer_join(input_text)
+                sentences.append(speech.strip())
+
+        self._untranslated_sentences = sentences
+
+        return sentences
 
     @classmethod
     def from_speech_bubbles(cls, speech_bubbles: List[SpeechBubble]):

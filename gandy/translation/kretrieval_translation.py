@@ -4,7 +4,6 @@ from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
 from gandy.onnx_models.marian import MarianONNX
 import logging
 import faiss
-from datetime import datetime
 
 logger = logging.getLogger('Gandy')
 
@@ -60,14 +59,11 @@ class MTRetrieval():
             new_dist /= temperature
             new_neighbor_distances.append(new_dist)
 
-        # Old: new_neighbor_distances = torch.tensor(new_neighbor_distances)
         new_neighbor_distances = np.array(new_neighbor_distances)
 
-        # Old: normalized = torch.softmax(new_neighbor_distances, dim=0)
         normalized = softmax(new_neighbor_distances, axis=0)
 
-        # Old: knn_dist = torch.zeros_like(mt_dist) # vocab_size
-        knn_dist = np.zeros_like(mt_dist)
+        knn_dist = np.zeros_like(mt_dist) # vocab_size
 
         # Aggregate over multiple instances of the same target token:
         for i in range(len(neighbor_values)):
@@ -130,7 +126,7 @@ class MTRetrieval():
         return ((1 - fuse_param) * mt_prob) + (fuse_param * knn_prob)
 
 class KRetrievalTranslationApp(Seq2SeqTranslationApp):
-    def __init__(self, concat_mode='frame'):
+    def __init__(self):
         """
         Augmented version of Seq2Seq translation. This app uses KNN with a datastore to improve token probabilities for already seen tokens, supposedly improving accuracy.
 
@@ -140,7 +136,7 @@ class KRetrievalTranslationApp(Seq2SeqTranslationApp):
 
         The datastore is pre-constructed from some training data, and can not be added to on runtime. (The Graves caching app can sort of do that, if so desired.)
         """
-        super().__init__(concat_mode)
+        super().__init__()
 
     def load_model(self):
         logger.info('Loading datastore - this may take a while...')
