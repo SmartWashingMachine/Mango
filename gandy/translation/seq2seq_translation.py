@@ -86,7 +86,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
                 logger.debug('Translating a section of text...')
 
                 if tgt_context_memory is not None and len(only_last_outputs) > 0:
-                    tgt_context_memory_to_use = p_transformer_join(only_last_outputs)
+                    tgt_context_memory_to_use = p_transformer_join(only_last_outputs + [' '])
                 else:
                     tgt_context_memory_to_use = None
 
@@ -99,6 +99,11 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
                 if tgt_context_memory is not None:
                     only_last_outputs.append(get_last_sentence(predictions))
+
+                    # self.max_context = context sentence n + 1 (current sentence)
+                    # only_last_outputs is only concerned with context sentence n, so we subtract 1.
+                    if len(only_last_outputs) > (self.max_context - 1):
+                        only_last_outputs = only_last_outputs[1:]
 
                 logger.debug('Done translating a section of text!')
         else:
