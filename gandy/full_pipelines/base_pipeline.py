@@ -216,11 +216,6 @@ class BasePipeline():
         )
         self.post_app(socketio, 'task3')
 
-        print('D:')
-        print(i_frame.get_untranslated_sentences())
-        print('~~~~')
-        print(translation_output)
-
         self.pre_app('spell_correction')
         translation_output = self.spell_correction_app.begin_process(translation_input=i_frame.get_untranslated_sentences(), translation_output=translation_output)
         self.post_app(socketio, 'task3')

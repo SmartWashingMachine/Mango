@@ -8,7 +8,7 @@ import uuid
 from flask_socketio import SocketIO
 from gandy.utils.frame_input import p_transformer_join
 from gandy.full_pipelines.base_pipeline import BasePipeline
-from typing import List
+from gandy.utils.context_state import ContextState
 
 logger = logging.getLogger('Gandy')
 
@@ -48,9 +48,37 @@ def emit_progress(socketio: SocketIO, j, sentences_len: int):
     }
     socketio.emit('progress_epub', data, include_self=True)
 
-def translate_epub(file_path: str, app_pipeline: BasePipeline, checkpoint_every_pages = 0, socketio: SocketIO = None, tgt_context_memory = None):
-    sent_regex = re.compile(r'([.?!])([a-zA-Z0-9_])')
+sent_regex = re.compile(r'([.?!])([a-zA-Z0-9_])')
 
+def translate_one_sentence(t: str, tgt_context_memory, app_pipeline: BasePipeline, context_state: ContextState):
+    t_o: str = DataCleaner.replace_many(DataCleaner.strip_html([t]))[0].strip()
+
+    # Create input.
+    t = p_transformer_join(context_state.prev_source_text_list + [t_o])
+    # Add current sentence to contextual inputs for future sentences.
+    context_state.update_source_list(t_o, app_pipeline.translation_app.get_sel_app().max_context)
+
+    # If tgt_context_memory is -1, we assume that means that the user wants to use the prior contextual outputs as memory.
+    if tgt_context_memory == '-1' and len(context_state.prev_target_text_list) > 0:
+        tgt_context_memory_to_use = p_transformer_join(context_state.prev_target_text_list + [' '])
+    else:
+        tgt_context_memory_to_use = None # Nothing in memory YET, or it's simply disabled.
+
+    translated_text, _attentions, _source_tokens, _target_tokens = app_pipeline.process_task2(
+        t, translation_force_words=None, socketio=None, tgt_context_memory=tgt_context_memory_to_use,
+        output_attentions=False,
+    )
+    translated_text = translated_text[0] # Batch of 1. Only get the sentence string itself.
+
+    # Because EPUBs are weird, sometimes the output text will have multiple sentences with poor spacing. Quick hack.
+    translated_text = re.sub(sent_regex, r'\1 \2', translated_text)
+
+    # Add current sentence to contextual outputs for future sentences.
+    context_state.update_target_list(translated_text, app_pipeline.translation_app.get_sel_app().max_context)
+
+    return translated_text
+
+def translate_epub(file_path: str, app_pipeline: BasePipeline, checkpoint_every_pages = 0, socketio: SocketIO = None, tgt_context_memory = None):
     e_book = epub.read_epub(file_path)
 
     write_book_id = str(uuid.uuid4())
@@ -59,38 +87,7 @@ def translate_epub(file_path: str, app_pipeline: BasePipeline, checkpoint_every_
     make_folder(book_folder_path)
     make_folder(book_checkpoint_folder_path)
 
-    context_list = [] # list of previous source texts for context.
-    tgt_context_list = [] # list of previous target texts for context. Only used if tgt_context_memory == -1.
-
-    def _translate_one_sentence(t: str, context_list: List[str], tgt_context_list: List[str]):
-        t_o: str = DataCleaner.replace_many(DataCleaner.strip_html([t]))[0]
-
-        if len(context_list) > 0:
-            t = p_transformer_join(context_list + [t_o])
-
-        context_list.append(t_o)
-        if len(context_list) > 3:
-            context_list = context_list[1:]
-
-        if tgt_context_memory == '-1' and len(tgt_context_list) > 0:
-            tgt_context_memory_to_use = p_transformer_join(tgt_context_list + [' '])
-        else:
-            tgt_context_memory_to_use = None
-
-        translated_text, _attentions, _source_tokens, _target_tokens = app_pipeline.process_task2(
-            t, translation_force_words=None, socketio=None, tgt_context_memory=tgt_context_memory_to_use,
-            output_attentions=False,
-        )
-        translated_text = translated_text[0]
-
-        # Because EPUBs are weird, sometimes the output text will have multiple sentences with poor spacing. Quick hack.
-        translated_text = re.sub(sent_regex, r'\1 \2', translated_text)
-
-        tgt_context_list.append(translated_text)
-        if len(tgt_context_list) > 3:
-            tgt_context_list = tgt_context_list[1:]
-
-        return translated_text, context_list, tgt_context_list
+    context_state = ContextState()
 
     # Progress is based on # of sentences - not pages.
     # pages_len = len(list(e_book.get_items()))
@@ -98,16 +95,6 @@ def translate_epub(file_path: str, app_pipeline: BasePipeline, checkpoint_every_
 
     i = 0 # Every page, save a checkpoint.
     j = 2 # Every few translations (and 1 initially), ping the progress.
-
-    """
-    # DEV
-    spine = [(ii, name) for (ii,(name,show)) in enumerate(e_book.spine)]
-    print('Spine:')
-    print(spine)
-    items = [(ii, itm.get_id()) for (ii,itm) in enumerate(e_book.get_items())]
-    print('Items:')
-    print(items)
-    """
 
     min_per_doc = 3
 
@@ -169,7 +156,7 @@ def translate_epub(file_path: str, app_pipeline: BasePipeline, checkpoint_every_
 
                 if len(p_text) > 0:
                     # We assume all the text in a HTML paragraph element constitutes a sentence.
-                    new_text, context_list, tgt_context_list = _translate_one_sentence(p_text, context_list, tgt_context_list)
+                    new_text = translate_one_sentence(p_text, tgt_context_memory, app_pipeline, context_state)
                     p.string = new_text
                     replacement_count += 1
 
@@ -190,7 +177,7 @@ def translate_epub(file_path: str, app_pipeline: BasePipeline, checkpoint_every_
                     d_text = d_text.strip()
 
                     if len(d_text) > 0:
-                        new_text, context_list, tgt_context_list = _translate_one_sentence(d_text, context_list, tgt_context_list)
+                        new_text = translate_one_sentence(d_text, tgt_context_memory, app_pipeline, context_state)
                         d.string = new_text
                         replacement_count += 1
 

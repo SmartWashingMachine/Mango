@@ -1,11 +1,11 @@
 from flask import request
 from PIL import Image
 import logging
-from typing import List
 
 from gandy.app import app, translate_pipeline, socketio
 from gandy.utils.frame_input import p_transformer_join
 from gandy.utils.get_sep_regex import get_last_sentence
+from gandy.utils.context_state import ContextState
 
 logger = logging.getLogger('Gandy')
 
@@ -13,41 +13,12 @@ logger = logging.getLogger('Gandy')
 # Context here is stored on the SERVER rather than the client.
 # Why? Because we may be using textract, and this is the best way to keep a state of previous contexts if it comes to that.
 
-class ContextState():
-    def __init__(self):
-        self.prev_source_text_list = []
-        self.prev_target_text_list = []
-
-    def update_list(self, text_list: List[str], text: str, max_context: int):
-        if max_context is None:
-            raise RuntimeError('max_context must be given.')
-
-        text_list = text_list + [text]
-
-        # max_context from translation app is the count for contextual sentences + current sentence. (so 1 context and 1 current would be 2).
-        # Whereas ContextState is only concerned with the context sentence count, so we subtract max_context by 1.
-        if len(text_list) > (max_context - 1):
-            text_list = text_list[1:]
-
-        return text_list
-
-    def update_source_list(self, text: str, max_context: int):
-        self.prev_source_text_list = self.update_list(self.prev_source_text_list, text, max_context)
-
-    def update_target_list(self, text: str, max_context: int):
-        self.prev_target_text_list = self.update_list(self.prev_target_text_list, text, max_context)
-
+# Used for task3 and task2 (clipboard copying with OCR box)
 context_state = ContextState()
 
 def translate_task3_background_job(images, force_words, box_id = None, with_text_detect = True, tgt_context_memory = None):
     try:
         socketio.emit('begin_translating_task3', {}, include_self=True)
-
-        print('MAX C:')
-        print(translate_pipeline.translation_app.get_sel_app().max_context)
-        print('prevs:')
-        print(len(context_state.prev_source_text_list))
-        print(context_state.prev_source_text_list)
 
         opened_images = []
 

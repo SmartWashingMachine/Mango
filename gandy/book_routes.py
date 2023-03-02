@@ -1,6 +1,4 @@
 from flask import request
-from io import BytesIO
-import base64
 import logging
 
 from gandy.tricks.translate_epub import translate_epub
