@@ -23,7 +23,7 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
         # Hacky for now. For OCR boxes. TODO
         # This is only used for clipboard copying on the frontend with the OCR box (normal OCR box method is task3). Context is stored on the server FOR NOW.
         logger.debug('Using box context.')
-        context_state.update_source_list(text) # text initially has no context.
+        context_state.update_source_list(text, translate_pipeline.translation_app.get_sel_app().max_context) # text initially has no context.
         text = p_transformer_join(context_state.prev_source_text_list + [text])
 
         socketio.emit('begin_translating_task2', {}, include_self=True)
@@ -49,7 +49,7 @@ def translate_task2_background_job(text, force_words, box_id = None, tgt_context
         output['targetTokens'] = target_tokens
 
         if box_id is not None:
-            context_state.update_target_list(new_text)
+            context_state.update_target_list(new_text, translate_pipeline.translation_app.get_sel_app().max_context)
 
         socketio.emit('done_translating_task2', output, include_self=True)
     except Exception:

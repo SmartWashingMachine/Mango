@@ -172,7 +172,7 @@ class BasePipeline():
         text = replace_terms([text], self.terms, on_side='source')[0]
 
         translation_output, attentions, source_tokens, target_tokens = self.translation_app.begin_process(
-            i_frames=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory,
+            i_frame=None, text=text, force_words=translation_force_words, tgt_context_memory=tgt_context_memory,
             output_attentions=output_attentions
         )
         self.post_app(socketio, 'task2')
@@ -183,6 +183,7 @@ class BasePipeline():
 
         # Modify user terms on the target side.
         translation_output = replace_terms(translation_output, self.terms, on_side='target')
+
         return translation_output, attentions, source_tokens, target_tokens
 
     def process_task3(self, image: Image, translation_force_words = None, socketio: SocketIO = None, with_text_detect = False, context_input = None, tgt_context_memory = None):
@@ -214,6 +215,11 @@ class BasePipeline():
             i_frame=i_frame, force_words=translation_force_words, tgt_context_memory=tgt_context_memory
         )
         self.post_app(socketio, 'task3')
+
+        print('D:')
+        print(i_frame.get_untranslated_sentences())
+        print('~~~~')
+        print(translation_output)
 
         self.pre_app('spell_correction')
         translation_output = self.spell_correction_app.begin_process(translation_input=i_frame.get_untranslated_sentences(), translation_output=translation_output)

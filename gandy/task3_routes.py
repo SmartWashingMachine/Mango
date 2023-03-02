@@ -18,22 +18,36 @@ class ContextState():
         self.prev_source_text_list = []
         self.prev_target_text_list = []
 
-    def update_list(self, text_list: List[str], text: str):
-        text_list.append(text)
-        if len(text_list) > 3:
+    def update_list(self, text_list: List[str], text: str, max_context: int):
+        if max_context is None:
+            raise RuntimeError('max_context must be given.')
+
+        text_list = text_list + [text]
+
+        # max_context from translation app is the count for contextual sentences + current sentence. (so 1 context and 1 current would be 2).
+        # Whereas ContextState is only concerned with the context sentence count, so we subtract max_context by 1.
+        if len(text_list) > (max_context - 1):
             text_list = text_list[1:]
 
-    def update_source_list(self, text: str):
-        self.update_list(self.prev_source_text_list, text)
+        return text_list
 
-    def update_target_list(self, text: str):
-        self.update_list(self.prev_target_text_list, text)
+    def update_source_list(self, text: str, max_context: int):
+        self.prev_source_text_list = self.update_list(self.prev_source_text_list, text, max_context)
+
+    def update_target_list(self, text: str, max_context: int):
+        self.prev_target_text_list = self.update_list(self.prev_target_text_list, text, max_context)
 
 context_state = ContextState()
 
 def translate_task3_background_job(images, force_words, box_id = None, with_text_detect = True, tgt_context_memory = None):
     try:
         socketio.emit('begin_translating_task3', {}, include_self=True)
+
+        print('MAX C:')
+        print(translate_pipeline.translation_app.get_sel_app().max_context)
+        print('prevs:')
+        print(len(context_state.prev_source_text_list))
+        print(context_state.prev_source_text_list)
 
         opened_images = []
 
@@ -61,10 +75,10 @@ def translate_task3_background_job(images, force_words, box_id = None, with_text
             )
 
             last_source = get_last_sentence(source_texts[-1])
-            context_state.update_source_list(last_source)
+            context_state.update_source_list(last_source, translate_pipeline.translation_app.get_sel_app().max_context)
             logger.debug(f'Task3 is updating server-side-context with item: {last_source}')
 
-            context_state.update_target_list(new_texts[-1])
+            context_state.update_target_list(new_texts[-1], translate_pipeline.translation_app.get_sel_app().max_context)
 
             socketio.emit('item_task3', { 'text': new_texts, 'boxId': box_id, 'sourceText': [last_source], }, include_self=True)
 

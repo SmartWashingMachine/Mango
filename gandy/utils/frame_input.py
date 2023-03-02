@@ -76,9 +76,9 @@ class FrameInput():
             else:
                 input_text = texts[-(max_context):]
 
-                # Concat sentences into a string in the form "A <SEP1> B <SEP2> C <SEP3> ... <SEPN> N"
-                speech = p_transformer_join(input_text)
-                sentences.append(speech.strip())
+            # Concat sentences into a string in the form "A <SEP1> B <SEP2> C <SEP3> ... <SEPN> N"
+            speech = p_transformer_join(input_text)
+            sentences.append(speech.strip())
 
         self._untranslated_sentences = sentences
 
@@ -89,19 +89,19 @@ class FrameInput():
         """
         Creates a FrameInput from the postprocessed output of a text detection app.
         """
-        return cls(speech_bubbles=speech_bubbles)
+        return cls(speech_bboxes=speech_bubbles)
 
 
 def unite_i_frames(i_frame: FrameInput, context_input: List[str]):
     """
-    Merge i_frame TEXT into one. No frame_bbox or speech_bboxes are merged.
+    Merge i_frame TEXT into one. No speech_bboxes are merged.
     """
     speech_text = ''
 
     for st in i_frame.untranslated_speech_text:
         speech_text += st
 
-    united_frame = FrameInput(frame_bbox=None, speech_bboxes=None)
+    united_frame = FrameInput(speech_bboxes=None)
     texts = context_input + [speech_text]
     full_input = p_transformer_join(texts)
 

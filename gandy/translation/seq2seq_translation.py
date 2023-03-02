@@ -105,7 +105,7 @@ class Seq2SeqTranslationApp(BaseTranslation):
             logger.debug('Translating given a string of text...')
 
             if tgt_context_memory is not None:
-                tgt_context_memory_to_use = p_transformer_join(tgt_context_memory)
+                tgt_context_memory_to_use = tgt_context_memory
             else:
                 tgt_context_memory_to_use = None
 

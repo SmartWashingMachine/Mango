@@ -232,7 +232,7 @@ class RCNNImageDetectionApp(BaseImageDetection):
         bboxes = self.sort_bboxes(bboxes)
 
         bboxes = self.rescale_bboxes(bboxes, image_width, image_height)
-        return bboxes
+        return bboxes.tolist()
 
 class ResNetImageDetectionApp(RCNNImageDetectionApp):
     def __init__(self, use_tta=False):

@@ -56,7 +56,7 @@ class ImageRedrawV2App(BaseImageRedraw):
         while (best_size is None or (best_size[0] < width and best_size[1] < height)):
             candidate_font_size = best_font_size + 1
 
-            font = ImageFont.truetype('resources/font.otf', candidate_font_size, encoding='unic')
+            font = ImageFont.truetype('resources/fonts/font.otf', candidate_font_size, encoding='unic')
 
             avg_char_width = sum(font.getsize(char)[0] for char in ascii_letters) / len(ascii_letters)
             candidate_max_char_count = max(1, int(width / avg_char_width)) # Max true chars before it overflows the width.
@@ -147,7 +147,7 @@ class ImageRedrawV2App(BaseImageRedraw):
                     if text_will_fit or cant_continue:
                         break
 
-            font = ImageFont.truetype('resources/font.otf', best_font_size, encoding='unic')
+            font = ImageFont.truetype('resources/fonts/font.otf', best_font_size, encoding='unic')
             wrapped_text = self.wrap_text(text, max_chars_per_line)
             # See: https://github.com/python-pillow/Pillow/issues/5669
 

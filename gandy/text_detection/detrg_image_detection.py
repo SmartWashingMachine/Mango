@@ -150,7 +150,7 @@ class DETRGImageDetectionApp(BaseImageDetection):
         logger.debug('Sorting boxes...')
         bboxes = self.sort_bboxes(bboxes)
 
-        return bboxes
+        return bboxes.tolist()
 
 class DETRGBigImageDetectionApp(DETRGImageDetectionApp):
     def __init__(self, model_name = 'big', confidence_threshold = None):

@@ -12,12 +12,10 @@ from gandy.image_redrawing.neighbor_redraw import NeighborRedrawApp
 from gandy.image_redrawing.image_redraw_global import ImageRedrawGlobalApp
 from gandy.text_detection.detrg_image_detection import DETRGBigImageDetectionApp, DETRVnImageDetectionApp
 from gandy.text_detection.rcnn_image_detection import ResNetImageDetectionApp
-from gandy.text_recognition.text_recognition import TesseractTextRecognitionApp
 from gandy.text_recognition.tr_recognition import TrOCRTextRecognitionApp
 from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
 from gandy.translation.kretrieval_translation import KRetrievalTranslationApp
 from gandy.translation.graves_translation import GravesTranslationApp
-from gandy.spell_correction.vaet_paraphrase import VaetParaphraseApp
 from gandy.spell_correction.doc_repair_spell_correction import DocRepairApp
 
 class AdvancedPipeline(BasePipeline):
@@ -38,24 +36,22 @@ class AdvancedPipeline(BasePipeline):
             text_recognition_app=SwitchApp(
                 apps=[
                     TrOCRTextRecognitionApp(),
-                    TesseractTextRecognitionApp(),
                     TrOCRTextRecognitionApp(model_sub_path='_ko/'),
                     TrOCRTextRecognitionApp(model_sub_path='_zh/'),
                 ],
                 app_names=[
                     'trocr',
-                    'tesseract',
                     'k_trocr',
                     'zh_trocr',
                 ],
             ),
             translation_app=SwitchApp(
                 apps=[
-                    Seq2SeqTranslationApp(concat_mode='2plus2'),
-                    KRetrievalTranslationApp(concat_mode='2plus2'),
-                    GravesTranslationApp(concat_mode='2plus2'),
-                    Seq2SeqTranslationApp(concat_mode='2plus2', model_sub_path='_zh/'),
-                    Seq2SeqTranslationApp(concat_mode='2plus2', model_sub_path='_ko/'),
+                    Seq2SeqTranslationApp(),
+                    KRetrievalTranslationApp(),
+                    GravesTranslationApp(),
+                    Seq2SeqTranslationApp(model_sub_path='_zh/'),
+                    Seq2SeqTranslationApp(model_sub_path='_ko/'),
                 ],
                 app_names=[
                     'j_base',
@@ -113,8 +109,6 @@ class AdvancedPipeline(BasePipeline):
 
         # For Mobile App (Randy)
         self.cur_mode = 'low'
-
-        self.paraphrase_app = VaetParaphraseApp()
 
     """ For Mobile App (Randy) """
     def low_mode(self):
