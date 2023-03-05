@@ -45,7 +45,7 @@ Lastly, all of these models were trained or tuned by me, and I'll probably conti
 # How do I install this?
 
 1. Download the prebuilt Mango application [here](https://github.com/SmartWashingMachine/Gandy/releases/).
-2. Download the "Jap2Eng Starter" model pack [here](https://drive.google.com/file/d/1_-q9tCBvpH9oNrVD0w_p7TXtEgB4Yo_R/view?usp=share_link), and drag the "models" folder to the same folder that Mango.exe is located in. If you want more functionality, download some of the model packs below.
+2. Download the "Jap2Eng Starter" model pack [here]([https://drive.google.com/file/d/1_-q9tCBvpH9oNrVD0w_p7TXtEgB4Yo_R/view?usp=share_link](https://drive.google.com/file/d/1GjtzG06j7bEBuaR3AwXURXENxvsfjBEy/view?usp=share_link)), and drag the "models" folder to the same folder that Mango.exe is located in. If you want more functionality, download some of the model packs below.
 3. Run mango.exe!
 
 *Models will not work if the corresponding model pack is not installed.*
