@@ -1,4 +1,5 @@
 from gandy.onnx_models.marian import MarianONNX
+from gandy.onnx_models.mtbig import MtBigONNX
 from gandy.translation.base_translation import BaseTranslation
 import logging
 from gandy.utils.get_sep_regex import get_last_sentence
@@ -125,3 +126,26 @@ class Seq2SeqTranslationApp(BaseTranslation):
             logger.debug('Done translating a string of text!')
 
         return output, attentions, source_tokens, target_tokens
+
+class Seq2SeqBigTranslationApp(Seq2SeqTranslationApp):
+    def load_model(self):
+        s = self.model_sub_path
+
+        logger.info('Loading translation model...')
+
+        s = '_jbig/'
+        self.translation_model = MtBigONNX(
+            f'models/marian{s}encoder.onnx',
+            f'models/marian{s}decoder.onnx',
+            f'models/marian{s}decoder_init.onnx',
+            f'models/marian{s}tokenizer_mt',
+            use_cuda=self.use_cuda,
+            max_length_a=self.max_length_a,
+        )
+
+        logger.info('Done loading translation model!')
+
+        self.loaded = True
+
+    def strip_padding(self, prediction):
+        return prediction.replace('</s>', '').encode('ascii', 'ignore').decode('utf-8').strip()

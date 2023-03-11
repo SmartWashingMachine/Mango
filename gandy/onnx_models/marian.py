@@ -476,6 +476,15 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
         x_dict['text'] = inp_text
         return x_dict
 
+    def get_decoder_input_ids(self, tgt_context_memory):
+        with self.tokenizer.as_target_tokenizer():
+            # We use :-1 to slice off the last token, which is the EOS token. -2 means slicing off SEP as well.
+            decoder_input_ids = self.tokenizer(tgt_context_memory, return_tensors='np', max_length=507).input_ids[:, :-1]
+        return decoder_input_ids
+
+    def get_target_tokenizer(self):
+        return self.tokenizer
+
     def begin_forward(self, x_dict, force_words = None, tgt_context_memory = None, output_attentions = False):
         did_fail = False
         if force_words:
@@ -501,9 +510,7 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
             force_word_ids = None
 
         if tgt_context_memory is not None:
-            # We use :-1 to slice off the last token, which is the EOS token. -2 means slicing off SEP as well.
-            with self.tokenizer.as_target_tokenizer():
-                decoder_input_ids = self.tokenizer(tgt_context_memory, return_tensors='np', max_length=507).input_ids[:, :-1]
+            decoder_input_ids = self.get_decoder_input_ids(tgt_context_memory)
         else:
             decoder_input_ids = None
 
@@ -568,7 +575,7 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
 
     def postprocess(self, outp_data):
         seq, attentions, source_tokens_np = outp_data
-        decoded = self.tokenizer.decode(seq[0, ...], skip_special_tokens=False)
+        decoded = self.get_target_tokenizer().decode(seq[0, ...], skip_special_tokens=False)
 
         if attentions is not None:
             # Reference [0] since batch size == 1
@@ -576,7 +583,7 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
             target_tokens = seq[0, ...].tolist()
 
             source_tokens = self.tokenizer.convert_ids_to_tokens(source_tokens)
-            target_tokens = self.tokenizer.convert_ids_to_tokens(target_tokens)
+            target_tokens = self.get_target_tokenizer().convert_ids_to_tokens(target_tokens)
         else:
             source_tokens = None
             target_tokens = None

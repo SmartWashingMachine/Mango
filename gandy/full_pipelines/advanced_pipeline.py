@@ -13,7 +13,7 @@ from gandy.image_redrawing.image_redraw_global import ImageRedrawGlobalApp
 from gandy.text_detection.detrg_image_detection import DETRGBigImageDetectionApp, DETRVnImageDetectionApp
 from gandy.text_detection.rcnn_image_detection import ResNetImageDetectionApp
 from gandy.text_recognition.tr_recognition import TrOCRTextRecognitionApp
-from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
+from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp, Seq2SeqBigTranslationApp
 from gandy.translation.kretrieval_translation import KRetrievalTranslationApp
 from gandy.translation.graves_translation import GravesTranslationApp
 from gandy.spell_correction.doc_repair_spell_correction import DocRepairApp
@@ -52,6 +52,7 @@ class AdvancedPipeline(BasePipeline):
                     GravesTranslationApp(),
                     Seq2SeqTranslationApp(model_sub_path='_zh/'),
                     Seq2SeqTranslationApp(model_sub_path='_ko/'),
+                    Seq2SeqBigTranslationApp(model_sub_path='_jbig/'),
                 ],
                 app_names=[
                     'j_base',
@@ -59,6 +60,7 @@ class AdvancedPipeline(BasePipeline):
                     'j_kaug_gaug',
                     'zh_base',
                     'ko_base',
+                    'j_big',
                 ],
             ),
             spell_correction_app=SwitchApp(
