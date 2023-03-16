@@ -29,7 +29,7 @@ class TNetEdgeImageClean(BaseImageClean):
         return A.Compose(transforms)
 
     def detect_mask(self, cropped_image):
-        return self.tnet_model.full_pipe(cropped_image)
+        return self.tnet_model.full_pipe(cropped_image)[0] # We don't care for confidence scores.
 
     def process(self, image: Image.Image, i_frame: FrameInput):
         full_mask_image = image.copy()

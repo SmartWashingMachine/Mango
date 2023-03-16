@@ -6,6 +6,7 @@ from gandy.image_cleaning.telea_image_clean import TeleaImageCleanApp
 from gandy.image_cleaning.tnet_image_clean import TNetImageClean
 from gandy.image_cleaning.tnet_edge_image_clean import TNetEdgeImageClean
 from gandy.image_cleaning.blur_image_clean import BlurImageCleanApp
+from gandy.image_cleaning.blur_and_mask_image_clean import BlurMaskImageCleanApp
 from gandy.image_redrawing.amg_convert import AMGConvertApp
 from gandy.image_redrawing.image_redraw_v2 import ImageRedrawV2App
 from gandy.image_redrawing.neighbor_redraw import NeighborRedrawApp
@@ -35,7 +36,7 @@ class AdvancedPipeline(BasePipeline):
             ),
             text_recognition_app=SwitchApp(
                 apps=[
-                    TrOCRTextRecognitionApp(),
+                    TrOCRTextRecognitionApp(has_proj=False), # TODO: Make others not use proj.
                     TrOCRTextRecognitionApp(model_sub_path='_ko/'),
                     TrOCRTextRecognitionApp(model_sub_path='_zh/'),
                 ],
@@ -81,6 +82,7 @@ class AdvancedPipeline(BasePipeline):
                     TNetImageClean(),
                     TNetEdgeImageClean(),
                     BlurImageCleanApp(),
+                    BlurMaskImageCleanApp(),
                 ],
                 app_names=[
                     'none',
@@ -89,6 +91,7 @@ class AdvancedPipeline(BasePipeline):
                     'smart_telea',
                     'edge_connect',
                     'blur',
+                    'blur_mask',
                 ],
                 # default_idx=1,
             ),

@@ -35,11 +35,15 @@ def unpad(x, pad):
         x = x[:,pad[0]:-pad[1]]
     return x
 
-def binary_filter_outs(o):
+def binary_filter_outs(o: np.ndarray):
     mask_o = o >= 0.15
 
     o[mask_o] = 1
     o[~mask_o] = 0
+
+    text_region = np.full_like(o, fill_value=1, dtype=o.dtype)
+    non_text_region = o * 0
+    return np.where(o >= 0.15, text_region, non_text_region)
 
 class TTNetONNX(BaseONNXModel):
     def __init__(self, onnx_path, use_cuda):
@@ -93,8 +97,9 @@ class TTNetONNX(BaseONNXModel):
 
         outp = outp.squeeze() # Remove batch from output.
 
+        confidence_scores = outp
         # TNet returns a probability of each pixel being activated. This util checks if the probability passes a fixed threshold and sets it to 1, and 0 otherwise.
-        binary_filter_outs(outp)
+        outp = binary_filter_outs(outp)
 
         # Remove the padding applied earlier.
         outp = unpad(outp, pads)
@@ -116,4 +121,4 @@ class TTNetONNX(BaseONNXModel):
         # Unsqueeze to get H * W * C, where C is 1.
         outp = outp[:, :, None]
 
-        return outp
+        return outp, confidence_scores
