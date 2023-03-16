@@ -1,6 +1,9 @@
 from typing import List, Dict
 from gandy.utils.replace_terms import replace_terms
 from gandy.utils.speech_bubble import SpeechBubble
+import logging
+
+logger = logging.getLogger('Gandy')
 
 def p_transformer_join(input_texts: List[str]):
     new_input_text = ''
@@ -65,6 +68,9 @@ class FrameInput():
 
         sentences: List[str] = []
         if len(self.untranslated_speech_text) == 0:
+            logger.debug('No sentences found in page. Translating nothing...')
+
+            self._untranslated_sentences = sentences
             return sentences
 
         for i in range(len(self.untranslated_speech_text)):
