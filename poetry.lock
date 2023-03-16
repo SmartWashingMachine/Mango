@@ -1991,16 +1991,16 @@ lint = ["black (>=22.3)", "clang-format (==13.0.0)", "flake8 (>=5.0.2)", "isort[
 
 [[package]]
 name = "onnxruntime-directml"
-version = "1.14.0"
+version = "1.14.1"
 description = "ONNX Runtime is a runtime accelerator for Machine Learning models"
 category = "main"
 optional = false
 python-versions = "*"
 files = [
-    {file = "onnxruntime_directml-1.14.0-cp310-cp310-win_amd64.whl", hash = "sha256:a197b579589a21bbce19aa8d39c3cecd65fd4ef12d532432441bbc6909eba70d"},
-    {file = "onnxruntime_directml-1.14.0-cp37-cp37m-win_amd64.whl", hash = "sha256:c77467a870348e4bd4a72784c02285ac57cc2e9f8e9d38d51932b89f69e1c916"},
-    {file = "onnxruntime_directml-1.14.0-cp38-cp38-win_amd64.whl", hash = "sha256:d6b58dfaa70f81b8757c644a3f4f9377fd6d85ecdfea06614f5b038e6d0c226d"},
-    {file = "onnxruntime_directml-1.14.0-cp39-cp39-win_amd64.whl", hash = "sha256:ec236c30a047f7780ed71f8d20d2b2b94410c7892d2d6a6d55486b16a779f15a"},
+    {file = "onnxruntime_directml-1.14.1-cp310-cp310-win_amd64.whl", hash = "sha256:ec135ef65b876a248a234b233e120b5275fb0247c64d74de202da6094e3adfe4"},
+    {file = "onnxruntime_directml-1.14.1-cp37-cp37m-win_amd64.whl", hash = "sha256:a4fdbc24ec46133e9d63200d22953374177e140d8bbee403d560b51dd0736db4"},
+    {file = "onnxruntime_directml-1.14.1-cp38-cp38-win_amd64.whl", hash = "sha256:1fa50d0ea35e732aef9644a6b11d0adefc63798b570aa5ef4d8152dbe91ac5a6"},
+    {file = "onnxruntime_directml-1.14.1-cp39-cp39-win_amd64.whl", hash = "sha256:837a4333021ba11c9d7605b4f31bbb97456dad4fd7ad2156fa290272233a2618"},
 ]
 
 [package.dependencies]
@@ -3811,4 +3811,4 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.10"
-content-hash = "8c4d2e614f012d6572acd67c2e93fdb15ed233916afcd2954bbd9afa3283c592"
+content-hash = "1eac2b5427d769ba7f337b4cbfcf3e938a88940cc9676ec1ee573759be111160"
