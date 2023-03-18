@@ -11,6 +11,8 @@ def session_has_cuda(sess: InferenceSession):
     return False
 
 def get_from_buffer(name: str, buffers, shapes):
+    if buffers[name] is None:
+        return None
     return buffers[name].view(shapes[name]).clone()
 
 DEVICE_ID = 0 # device ID. TODO: Use other than cuda:0

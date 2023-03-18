@@ -35,17 +35,18 @@ class OnnxArEncoder():
             input_ids.data_ptr(),
         )
 
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            'attention_mask',
-            attention_mask.device.type,
-            DEVICE_ID,
-            np.int64,
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
+        if attention_mask is not None:
+            attention_mask = attention_mask.contiguous()
+            io_binding.bind_input(
+                'attention_mask',
+                attention_mask.device.type,
+                DEVICE_ID,
+                np.int64,
+                tuple(attention_mask.shape),
+                attention_mask.data_ptr(),
+            )
 
-    def prepare_outputs_binding(self, io_binding, input_ids, attention_mask):
+    def prepare_outputs_binding(self, io_binding, input_ids, attention_mask, has_src_positions = True):
         bsz = input_ids.size(0)
         seq_length = input_ids.size(1)
         hidden_size = self.config.d_model
@@ -61,16 +62,20 @@ class OnnxArEncoder():
             output_buffer.data_ptr(),
         )
 
-        src_positions_shape = (seq_length, hidden_size)
-        src_positions_buffer = torch.empty(np.prod(src_positions_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
-        io_binding.bind_output(
-            'src_positions',
-            src_positions_buffer.device.type,
-            DEVICE_ID,
-            np.float32,
-            src_positions_shape,
-            src_positions_buffer.data_ptr(),
-        )
+        if has_src_positions:
+            src_positions_shape = (seq_length, hidden_size)
+            src_positions_buffer = torch.empty(np.prod(src_positions_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
+            io_binding.bind_output(
+                'src_positions',
+                src_positions_buffer.device.type,
+                DEVICE_ID,
+                np.float32,
+                src_positions_shape,
+                src_positions_buffer.data_ptr(),
+            )
+        else:
+            src_positions_buffer = None
+            src_positions_shape = None
 
         output_shapes = {
             'encoder_hidden_state': output_shape,
@@ -112,15 +117,24 @@ class OnnxArEncoder():
             encoder_hidden_state = get_from_buffer('encoder_hidden_state', output_buffers, output_shapes)
             src_positions = get_from_buffer('src_positions', output_buffers, output_shapes)
         else:
-            encoder_hidden_state, src_positions = (
+            input_feed = {
+                'input_ids': input_ids.astype(np.int64),
+            }
+            if attention_mask is not None:
+                input_feed['attention_mask'] = attention_mask.astype(np.int64)
+
+            outputs = (
                 self.encoder.run(
                     None,
-                    {
-                        "input_ids": input_ids.astype(np.int64),
-                        "attention_mask": attention_mask.astype(np.int64),
-                    },
+                    input_feed,
                 )
             )
+
+            if len(outputs) == 2:
+                encoder_hidden_state, src_positions = outputs
+            else:
+                encoder_hidden_state = outputs[0]
+                src_positions = None
 
         return BaseModelOutput(encoder_hidden_state, src_positions=src_positions)
 

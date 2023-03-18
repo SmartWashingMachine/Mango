@@ -1,131 +1,43 @@
 from gandy.onnx_models.marian import BaseMarianONNX
 from gandy.utils.mt_big_tokenizer import MtBigTokenizer
 import numpy as np
-from onnxruntime import (
-    GraphOptimizationLevel,
-    InferenceSession,
-    SessionOptions,
-    ExecutionMode,
-    RunOptions,
-    OrtValue,
-)
-import functools
-import operator
 from gandy.utils.knn_utils.modeling_outputs import (
     Seq2SeqLMOutput,
-    BaseModelOutput,
 )
 import copy
+from gandy.onnx_models.auto_regressive.auto_regressive_decoder import OnnxArDecoder
+from gandy.onnx_models.auto_regressive.auto_regressive_decoder_init import OnnxArDecoderInit
+from gandy.onnx_models.auto_regressive.auto_regressive_encoder import OnnxArEncoder
+from transformers.generation_utils import GenerationMixin
+from gandy.utils.knn_utils.generation_mixin import GenerationMixinNumpy
 
-class OnnxMarianEncoder():
-    def __init__(self, encoder_sess: InferenceSession):
-        self.encoder = encoder_sess
+class BigEncoder(OnnxArEncoder):
 
-        self.main_input_name = 'input_ids'
+    def prepare_io_binding(self, input_ids, attention_mask):
+        io_binding = self.encoder.io_binding()
+        self.prepare_inputs_binding(io_binding, input_ids, attention_mask)
 
-    def forward(
-        self,
-        input_ids,
-        attention_mask,
-        inputs_embeds=None,
-        head_mask=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-    ):
-        encoder_hidden_state = (
-            self.encoder.run(
-                None,
-                {
-                    "input_ids": input_ids.astype(np.int64),
-                    #"attention_mask": attention_mask.astype(np.int64),
-                },
-            )
-        )
+        # Unlike normal model, Big does not use P-transformer modifications.
+        output_shapes, output_buffers = self.prepare_outputs_binding(io_binding, input_ids, attention_mask, has_src_positions=False)
 
-        return BaseModelOutput(encoder_hidden_state[0])
+        return io_binding, output_shapes, output_buffers
 
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
+    def forward(self, input_ids, attention_mask, inputs_embeds=None, head_mask=None, output_attentions=None, output_hidden_states=None, return_dict=None):
+        attention_mask = None
 
-class OnnxMarianDecoderInit():
-    def __init__(self, decoder_sess: InferenceSession):
-        self.decoder = decoder_sess
+        return super().forward(input_ids, attention_mask, inputs_embeds, head_mask, output_attentions, output_hidden_states, return_dict)
+
+class BigDecoderInit(OnnxArDecoderInit):
 
     def forward(self, input_ids, encoder_attention_mask, encoder_hidden_states):
-        decoder_outputs = self.decoder.run(
-            None,
-            {
-                "input_ids": input_ids.astype(np.int64),
-                #"encoder_attention_mask": encoder_attention_mask.astype(np.int64),
-                "encoder_hidden_states": encoder_hidden_states,
-            },
-        )
+        return super().forward(input_ids, encoder_attention_mask=None, encoder_hidden_states=encoder_hidden_states, src_positions=None)
 
-        hidden_states = [decoder_outputs[1]]
-        cross_attentions = [decoder_outputs[2]]
-        pkvs = []
-        for x in decoder_outputs[3:]:
-            if x.shape[2] == 512:
-                continue
-            pkvs.append(x)
-    
-        list_pkv = tuple(x for x in pkvs)
-        out_past_key_values = tuple(
-            list_pkv[i : i + 4] for i in range(0, len(list_pkv), 4)
-        )
-
-        list_hidden_states = tuple(x for x in hidden_states)
-
-        list_cross_attentions = tuple(x for x in cross_attentions)
-
-        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-class OnnxMarianDecoder():
-    def __init__(self, decoder_sess: InferenceSession):
-        self.decoder = decoder_sess
+class BigDecoder(OnnxArDecoder):
 
     def forward(self, input_ids, attention_mask, encoder_hidden_states, past_key_values):
-        flat_past_key_values = functools.reduce(operator.iconcat, past_key_values, [])
+        return super().forward(input_ids, attention_mask=None, encoder_hidden_states=encoder_hidden_states, past_key_values=past_key_values, src_positions=None)
 
-        input_names = [x.name for x in self.decoder.get_inputs()]
-        inputs = [
-            input_ids,
-            #attention_mask,
-        ] + [
-            copy.deepcopy(tensor) for tensor in flat_past_key_values
-        ]
-
-        decoder_inputs = dict(zip(input_names, inputs))
-
-        decoder_outputs = self.decoder.run(None, decoder_inputs)
-
-        hidden_states = [decoder_outputs[1]]
-        cross_attentions = [decoder_outputs[2]]
-        pkvs = []
-        for x in decoder_outputs[3:]:
-            if x.shape[2] == 1024:
-                continue
-            pkvs.append(x)
-    
-        list_pkv = tuple(x for x in pkvs)
-        out_past_key_values = tuple(
-            list_pkv[i : i + 4] for i in range(0, len(list_pkv), 4)
-        )
-
-        list_hidden_states = tuple(x for x in hidden_states)
-
-        list_cross_attentions = tuple(x for x in cross_attentions)
-
-        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-class MtBigONNX(BaseMarianONNX):
+class BaseMtBigONNX(BaseMarianONNX):
     def get_target_tokenizer(self):
         return self.en_tokenizer
 
@@ -135,9 +47,9 @@ class MtBigONNX(BaseMarianONNX):
         return decoder_input_ids
 
     def load_session(self, enc_path, dec_path, dec_init_path):
-        self.encoder = OnnxMarianEncoder(self.create_session(enc_path))
-        self.decoder = OnnxMarianDecoder(self.create_session(dec_path))
-        self.decoder_init = OnnxMarianDecoderInit(self.create_session(dec_init_path))
+        self.encoder = BigEncoder(self.create_session(enc_path), self.config)
+        self.decoder = BigDecoder(self.create_session(dec_path), self.config)
+        self.decoder_init = BigDecoderInit(self.create_session(dec_init_path), self.config)
 
     def load_dataloader(self, tokenizer_path):
         self.tokenizer = MtBigTokenizer.from_pretrained(tokenizer_path + '_ja', truncation_side='left', padding_side='right')
@@ -183,8 +95,8 @@ class MtBigONNX(BaseMarianONNX):
                 decoder_input_ids = decoder_input_ids[:, -1:]
 
             onnx_outputs = self.decoder(
-                decoder_input_ids.astype(np.int64),
-                attention_mask.astype(np.int64),
+                decoder_input_ids,
+                attention_mask,
                 encoder_hidden_states,
                 past_key_values,
             )
@@ -230,3 +142,9 @@ class MtBigONNX(BaseMarianONNX):
             "cross_attn_head_mask": cross_attn_head_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
         }
+
+class MtBigONNXNumpy(BaseMtBigONNX, GenerationMixinNumpy):
+    pass
+
+class MtBigONNXTorch(BaseMtBigONNX, GenerationMixin):
+    pass

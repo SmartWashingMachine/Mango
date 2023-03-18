@@ -103,15 +103,16 @@ class OnnxArDecoderInit():
             input_ids.data_ptr(),
         )
 
-        attention_mask = attention_mask.contiguous()
-        io_binding.bind_input(
-            'encoder_attention_mask',
-            attention_mask.device.type,
-            DEVICE_ID,
-            np.int64,
-            tuple(attention_mask.shape),
-            attention_mask.data_ptr(),
-        )
+        if attention_mask is not None:
+            attention_mask = attention_mask.contiguous()
+            io_binding.bind_input(
+                'encoder_attention_mask',
+                attention_mask.device.type,
+                DEVICE_ID,
+                np.int64,
+                tuple(attention_mask.shape),
+                attention_mask.data_ptr(),
+            )
 
         if encoder_hidden_states is not None:
             encoder_hidden_states = encoder_hidden_states.contiguous()
@@ -135,7 +136,7 @@ class OnnxArDecoderInit():
                 src_positions.data_ptr(),
             )
 
-    def prepare_outputs(self, io_binding, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values):
+    def prepare_outputs(self, io_binding, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values, has_cross_attentions = True):
         # Bind all outputs.
         bsz = input_ids.size(0)
         seq_length = input_ids.size(1)
@@ -172,18 +173,22 @@ class OnnxArDecoderInit():
         output_buffers['decoder_hidden_state'] = decoder_hidden_state_buffer
         output_shapes['decoder_hidden_state'] = decoder_hidden_state_shape
 
-        # Cross attention for visualization.
-        src_seq_length = src_positions.size(0)
-        cross_attentions_shape = (bsz, num_heads, seq_length, src_seq_length)
-        cross_attentions_buffer = torch.empty(np.prod(cross_attentions_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
-        io_binding.bind_output(
-            'cross_attentions',
-            cross_attentions_buffer.device.type,
-            DEVICE_ID,
-            np.float32,
-            cross_attentions_shape,
-            cross_attentions_buffer.data_ptr(),
-        )
+        if has_cross_attentions:
+            # Cross attention for visualization.
+            src_seq_length = encoder_hidden_states.size(1)
+            cross_attentions_shape = (bsz, num_heads, seq_length, src_seq_length)
+            cross_attentions_buffer = torch.empty(np.prod(cross_attentions_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
+            io_binding.bind_output(
+                'cross_attentions',
+                cross_attentions_buffer.device.type,
+                DEVICE_ID,
+                np.float32,
+                cross_attentions_shape,
+                cross_attentions_buffer.data_ptr(),
+            )
+        else:
+            cross_attentions_buffer = None
+            cross_attentions_shape = None
 
         output_buffers['cross_attentions'] = cross_attentions_buffer
         output_shapes['cross_attentions'] = cross_attentions_shape
@@ -226,14 +231,19 @@ class OnnxArDecoderInit():
             
             return logits, out_past_key_values, list_hidden_states, list_cross_attentions
         else:
+            input_feed = {
+                "input_ids": input_ids.astype(np.int64),
+                "encoder_hidden_states": encoder_hidden_states,
+            }
+
+            if src_positions is not None:
+                input_feed['src_positions'] = src_positions
+            if encoder_attention_mask is not None:
+                input_feed['encoder_attention_mask'] = encoder_attention_mask.astype(np.int64)
+
             decoder_outputs = self.decoder.run(
                 None,
-                {
-                    "input_ids": input_ids.astype(np.int64),
-                    "encoder_attention_mask": encoder_attention_mask.astype(np.int64),
-                    "encoder_hidden_states": encoder_hidden_states,
-                    "src_positions": src_positions,
-                },
+                input_feed
             )
 
         hidden_states = [decoder_outputs[1]]

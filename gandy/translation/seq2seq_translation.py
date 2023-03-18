@@ -1,5 +1,5 @@
 from gandy.onnx_models.marian import MarianONNXNumpy, MarianONNXTorch
-from gandy.onnx_models.mtbig import MtBigONNX
+from gandy.onnx_models.mtbig import MtBigONNXNumpy, MtBigONNXTorch
 from gandy.translation.base_translation import BaseTranslation
 import logging
 from gandy.utils.get_sep_regex import get_last_sentence
@@ -138,7 +138,11 @@ class Seq2SeqBigTranslationApp(Seq2SeqTranslationApp):
         logger.info('Loading translation model...')
 
         s = '_jbig/'
-        self.translation_model = MtBigONNX(
+        if self.use_cuda:
+            model_cls = MtBigONNXTorch
+        else:
+            model_cls = MtBigONNXNumpy
+        self.translation_model = model_cls(
             f'models/marian{s}encoder.onnx',
             f'models/marian{s}decoder.onnx',
             f'models/marian{s}decoder_init.onnx',

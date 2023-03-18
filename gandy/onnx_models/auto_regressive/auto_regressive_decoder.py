@@ -74,13 +74,17 @@ class OnnxArDecoder(OnnxArDecoderInit):
             return logits, out_past_key_values, list_hidden_states, list_cross_attentions
         else:
             input_ids = input_ids.astype(np.int64)
-            attention_mask = attention_mask.astype(np.int64)
 
             input_names = [x.name for x in self.decoder.get_inputs()]
             inputs = [
                 input_ids,
-                attention_mask,
-            ] + [
+            ]
+
+            if attention_mask is not None:
+                attention_mask = attention_mask.astype(np.int64)
+                inputs = inputs + [attention_mask]
+
+            inputs = inputs + [
                 tensor for tensor in flat_past_key_values
             ]
 
