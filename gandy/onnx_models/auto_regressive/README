@@ -1,0 +1,2 @@
+A lot of the code here is from the Optimum package by the Huggingface team. IOBinding is a pain.
+They've licensed the code under the Apache license, see it here: https://github.com/huggingface/optimum/blob/main/LICENSE

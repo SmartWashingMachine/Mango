@@ -1,4 +1,4 @@
-from gandy.onnx_models.marian import MarianONNX
+from gandy.onnx_models.marian import BaseMarianONNX
 from gandy.utils.mt_big_tokenizer import MtBigTokenizer
 import numpy as np
 from onnxruntime import (
@@ -125,7 +125,7 @@ class OnnxMarianDecoder():
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-class MtBigONNX(MarianONNX):
+class MtBigONNX(BaseMarianONNX):
     def get_target_tokenizer(self):
         return self.en_tokenizer
 

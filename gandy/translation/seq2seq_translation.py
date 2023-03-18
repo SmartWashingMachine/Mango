@@ -1,4 +1,4 @@
-from gandy.onnx_models.marian import MarianONNX
+from gandy.onnx_models.marian import MarianONNXNumpy, MarianONNXTorch
 from gandy.onnx_models.mtbig import MtBigONNX
 from gandy.translation.base_translation import BaseTranslation
 import logging
@@ -32,7 +32,11 @@ class Seq2SeqTranslationApp(BaseTranslation):
 
         logger.info('Loading translation model...')
 
-        self.translation_model = MarianONNX(
+        if self.use_cuda:
+            model_cls = MarianONNXTorch
+        else:
+            model_cls = MarianONNXNumpy
+        self.translation_model = model_cls(
             f'models/marian{s}encoder_q.onnx',
             f'models/marian{s}decoder_q.onnx',
             f'models/marian{s}decoder_init_q.onnx',

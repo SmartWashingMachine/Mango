@@ -5,7 +5,6 @@ from onnxruntime import (
     SessionOptions,
     ExecutionMode,
     RunOptions,
-    OrtValue,
 )
 from transformers import (
     AutoTokenizer,
@@ -13,238 +12,27 @@ from transformers import (
 )
 from gandy.utils.knn_utils.modeling_outputs import (
     Seq2SeqLMOutput,
-    BaseModelOutput,
 )
-from typing import List
 
 from gandy.utils.knn_utils.generation_mixin import GenerationMixinNumpy
-import functools
-import operator
 from datetime import datetime
 import numpy as np
 import logging
 from gandy.utils.clean_text import clean_text
 
+from transformers.generation_utils import GenerationMixin
+from gandy.onnx_models.auto_regressive.auto_regressive_decoder import OnnxArDecoder
+from gandy.onnx_models.auto_regressive.auto_regressive_decoder_init import OnnxArDecoderInit
+from gandy.onnx_models.auto_regressive.auto_regressive_encoder import OnnxArEncoder
+
 logger = logging.getLogger('Gandy')
 
-def session_has_cuda(sess: InferenceSession):
-    # Dev TODO - haven't tested IOBinding yet. Also need to somehow stop PKV + encoder hidden state transferring between CUDA and CPu constantly.
-    return False
+try:
+    import torch
+except:
+    pass
 
-    providers = sess.get_providers()
-    for prov in providers:
-        if 'Dml' in prov:
-            return True
-
-    return False
-
-"""
-
-Unlike the typical Marian model, it uses beam search logic borrowed from Huggingface but adapted to use numpy arrays instead of pytorch.
-
-"""
-
-class OnnxMarianEncoder():
-    def __init__(self, encoder_sess: InferenceSession):
-        self.encoder = encoder_sess
-        self.use_cuda = session_has_cuda(encoder_sess)
-
-        self.main_input_name = 'input_ids'
-
-    def prepare_io_binding(self, input_ids: np.ndarray, attention_mask: np.ndarray):
-        io_binding = self.encoder.io_binding()
-
-        input_ids = OrtValue.ortvalue_from_numpy(input_ids.astype(np.int64), 'cuda', device_id=0)
-        attention_mask = OrtValue.ortvalue_from_numpy(attention_mask.astype(np.int64), 'cuda', device_id=0)
-        
-        io_binding.bind_ortvalue_input('input_ids', input_ids)
-        io_binding.bind_ortvalue_input('attention_mask', attention_mask)
-
-        io_binding.bind_output('encoder_hidden_state', 'cuda', device_id=0)
-        io_binding.bind_output('src_positions', 'cuda', device_id=0)
-
-        return io_binding
-
-    def forward(
-        self,
-        input_ids,
-        attention_mask,
-        inputs_embeds=None,
-        head_mask=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-    ):
-        if self.use_cuda:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask)
-
-            io_binding.synchronize_inputs()
-            self.encoder.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            ort_outputs = io_binding.get_outputs()
-
-            encoder_hidden_state = ort_outputs[0]
-            src_positions = ort_outputs[1]
-        else:
-            encoder_hidden_state, src_positions = (
-                self.encoder.run(
-                    None,
-                    {
-                        "input_ids": input_ids.astype(np.int64),
-                        "attention_mask": attention_mask.astype(np.int64),
-                    },
-                )
-            )
-
-        return BaseModelOutput(encoder_hidden_state, src_positions=src_positions)
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-class OnnxMarianDecoderInit():
-    def __init__(self, decoder_sess: InferenceSession):
-        self.decoder = decoder_sess
-        self.use_cuda = session_has_cuda(decoder_sess)
-
-    def prepare_io_binding(self, input_ids: np.ndarray, attention_mask: np.ndarray, encoder_hidden_states: OrtValue, src_positions: OrtValue):
-        io_binding = self.decoder.io_binding()
-
-        input_ids = OrtValue.ortvalue_from_numpy(input_ids.astype(np.int64), 'cuda', device_id=0)
-        attention_mask = OrtValue.ortvalue_from_numpy(attention_mask.astype(np.int64), 'cuda', device_id=0)
-        
-        io_binding.bind_ortvalue_input('input_ids', input_ids)
-        io_binding.bind_ortvalue_input('attention_mask', attention_mask)
-        io_binding.bind_ortvalue_input('encoder_hidden_states', encoder_hidden_states)
-        io_binding.bind_ortvalue_input('src_positions', src_positions)
-
-
-        # Bind all outputs.
-        for arg in self.decoder.get_outputs():
-            io_binding.bind_output(arg.name, 'cuda', device_id=0)
-
-        return io_binding
-
-    def forward(self, input_ids, encoder_attention_mask, encoder_hidden_states, src_positions):
-        if self.use_cuda:
-            io_binding = self.prepare_io_binding(input_ids, encoder_attention_mask, encoder_hidden_states, src_positions)
-
-            io_binding.synchronize_inputs()
-            self.decoder.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            ort_outputs = io_binding.get_outputs()
-            # Convert to numpy.
-            decoder_outputs = [o.numpy() for o in ort_outputs]
-        else:
-            decoder_outputs = self.decoder.run(
-                None,
-                {
-                    "input_ids": input_ids.astype(np.int64),
-                    "encoder_attention_mask": encoder_attention_mask.astype(np.int64),
-                    "encoder_hidden_states": encoder_hidden_states,
-                    "src_positions": src_positions,
-                },
-            )
-
-        hidden_states = [decoder_outputs[1]]
-        cross_attentions = [decoder_outputs[2]]
-        pkvs = []
-        for x in decoder_outputs[3:]:
-            if x.shape[2] == 512:
-                continue
-            pkvs.append(x)
-    
-        list_pkv = tuple(x for x in pkvs)
-        out_past_key_values = tuple(
-            list_pkv[i : i + 4] for i in range(0, len(list_pkv), 4)
-        )
-
-        list_hidden_states = tuple(x for x in hidden_states)
-
-        list_cross_attentions = tuple(x for x in cross_attentions)
-
-        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-class OnnxMarianDecoder():
-    def __init__(self, decoder_sess: InferenceSession):
-        self.decoder = decoder_sess
-        self.use_cuda = session_has_cuda(decoder_sess)
-
-    def prepare_io_binding(self, input_ids: np.ndarray, attention_mask: np.ndarray, flat_past_key_values: List[np.ndarray]):
-        io_binding = self.decoder.io_binding()
-        input_names = [x.name for x in self.decoder.get_inputs()]
-
-        input_ids = OrtValue.ortvalue_from_numpy(input_ids.astype(np.int64), 'cuda', device_id=0)
-        attention_mask = OrtValue.ortvalue_from_numpy(attention_mask.astype(np.int64), 'cuda', device_id=0)
-        
-        io_binding.bind_ortvalue_input(input_names[0], input_ids)
-        io_binding.bind_ortvalue_input(input_names[1], attention_mask)
-
-        i = 2
-        for p in flat_past_key_values:
-            ort_p = OrtValue.ortvalue_from_numpy(p, 'cuda', device_id=0)
-            io_binding.bind_ortvalue_input(input_names[i], ort_p)
-
-            i += 1
-
-        # Bind all outputs.
-        for arg in self.decoder.get_outputs():
-            io_binding.bind_output(arg.name, 'cuda', device_id=0)
-
-        return io_binding
-
-    def forward(self, input_ids, attention_mask, encoder_hidden_states, past_key_values, src_positions):
-        flat_past_key_values = functools.reduce(operator.iconcat, past_key_values, [])
-
-        if self.use_cuda:
-            io_binding = self.prepare_io_binding(input_ids, attention_mask, flat_past_key_values)
-
-            io_binding.synchronize_inputs()
-            self.decoder.run_with_iobinding(io_binding)
-            io_binding.synchronize_outputs()
-
-            ort_outputs = io_binding.get_outputs()
-            # Convert to numpy.
-            decoder_outputs = [o.numpy() for o in ort_outputs]
-        else:
-            input_names = [x.name for x in self.decoder.get_inputs()]
-            inputs = [
-                input_ids,
-                attention_mask,
-            ] + [
-                tensor for tensor in flat_past_key_values
-            ]
-
-            decoder_inputs = dict(zip(input_names, inputs))
-            decoder_outputs = self.decoder.run(None, decoder_inputs)
-
-        hidden_states = [decoder_outputs[1]]
-        cross_attentions = [decoder_outputs[2]]
-        pkvs = []
-        for x in decoder_outputs[3:]:
-            if x.shape[2] == 512:
-                continue
-            pkvs.append(x)
-    
-        list_pkv = tuple(x for x in pkvs)
-        out_past_key_values = tuple(
-            list_pkv[i : i + 4] for i in range(0, len(list_pkv), 4)
-        )
-
-        list_hidden_states = tuple(x for x in hidden_states)
-
-        list_cross_attentions = tuple(x for x in cross_attentions)
-
-        return decoder_outputs[0], out_past_key_values, list_hidden_states, list_cross_attentions
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
+class BaseMarianONNX(BaseONNXModel):
     def __init__(self, onnx_path_enc, onnx_path_dec, onnx_path_dec_init, dataloader_path, process_outputs_cb = None, use_cuda = None, max_length_a = 0):
         """
         This model uses a Marian Transformer Encoder-Decoder architecture with a tokenizer from Huggingface.
@@ -257,16 +45,20 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
         super().__init__(use_cuda=use_cuda)
         self.main_input_name = 'input_ids'
 
+        self.config = AutoConfig.from_pretrained(dataloader_path)
+
         self.load_session(onnx_path_enc, onnx_path_dec, onnx_path_dec_init)
         self.load_dataloader(dataloader_path)
-
-        self.config = AutoConfig.from_pretrained(dataloader_path)
 
         self.process_outputs_cb = process_outputs_cb
 
         self.max_length_a = max_length_a
 
         # Not needed? monkey_patch_model(self)
+
+        self.use_cuda = use_cuda
+        # GenerationMixin ONLY works if use_cuda == True.
+        # GenerationMixinNumpy ONLY works if use_cuda == False.
 
     # Copied from MarianMTModel.
     def prepare_inputs_for_generation(
@@ -324,29 +116,26 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
     def prepare_decoder_input_ids_from_labels(self, labels: np.ndarray):
         return self.shift_tokens_right(labels, self.config.pad_token_id, self.config.decoder_start_token_id)
 
-    # Copied from MarianMTModel.
     @staticmethod
     def _reorder_cache(past, beam_idx):
         reordered_past = ()
         for layer_past in past:
             # cached cross_attention states don't have to be reordered -> they are always the same
+            if not isinstance(layer_past[0][0], np.ndarray): # TODO - Is this right?
+                reordered_past += (
+                    tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
+                )
+            else:
+                reordered_past += (
+                    tuple(np.take(past_state, beam_idx, axis=0) for past_state in layer_past[:2]) + layer_past[2:],
+                )
 
-            """
-            Old:
-
-            reordered_past += (
-                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
-            )
-            """
-            reordered_past += (
-                tuple(np.take(past_state, beam_idx, axis=0) for past_state in layer_past[:2]) + layer_past[2:],
-            )
         return reordered_past
 
     # Some of the following methods are used for GenerationMixin.
     @property
     def device(self):
-        return "cpu"
+        return 'cuda:0' if self.use_cuda else 'cpu'
 
     def get_encoder(self):
         return self.encoder
@@ -379,6 +168,12 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
 
         return model_kwargs
 
+    def mc(self, tensor):
+        if tensor is not None and self.use_cuda:
+            return tensor.contiguous()
+        else:
+            return tensor
+
     def forward(
         self,
         input_ids=None,
@@ -409,6 +204,25 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
         encoder_hidden_states = encoder_outputs[0]
         src_positions = encoder_outputs[-1]
 
+        # NOTE: So for some reason we NEED these contiguous checks for Iobinding (if using CUDA).
+        # Even more bizarre is that the contiguous functions called above right before creating the inputs (see prepare_inputs()) are not enough. What in tarnation?
+        decoder_input_ids = self.mc(decoder_input_ids)
+        input_ids = self.mc(input_ids)
+        attention_mask = self.mc(attention_mask)
+        decoder_attention_mask = self.mc(decoder_attention_mask)
+        head_mask = self.mc(head_mask)
+        decoder_head_mask = self.mc(decoder_head_mask)
+        encoder_outputs = self.mc(encoder_hidden_states)
+        src_positions = self.mc(src_positions)
+        inputs_embeds = self.mc(inputs_embeds)
+        decoder_inputs_embeds = self.mc(decoder_inputs_embeds)
+        if past_key_values is not None:
+            for p in past_key_values:
+                if p is None:
+                    continue
+                for q in p:
+                    q = self.mc(q)
+
         if past_key_values is None:
             # runs only for the first time:
             init_onnx_outputs = self.decoder_init(
@@ -420,8 +234,8 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
                 decoder_input_ids = decoder_input_ids[:, -1:]
 
             onnx_outputs = self.decoder(
-                decoder_input_ids.astype(np.int64),
-                attention_mask.astype(np.int64),
+                decoder_input_ids,
+                attention_mask,
                 encoder_hidden_states,
                 past_key_values,
                 src_positions,
@@ -464,14 +278,14 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
         return ort_sess
 
     def load_session(self, enc_path, dec_path, dec_init_path):
-        self.encoder = OnnxMarianEncoder(self.create_session(enc_path))
-        self.decoder = OnnxMarianDecoder(self.create_session(dec_path))
-        self.decoder_init = OnnxMarianDecoderInit(self.create_session(dec_init_path))
+        self.encoder = OnnxArEncoder(self.create_session(enc_path), self.config)
+        self.decoder = OnnxArDecoder(self.create_session(dec_path), self.config)
+        self.decoder_init = OnnxArDecoderInit(self.create_session(dec_init_path), self.config)
 
     def preprocess(self, inp):
         inp_text = clean_text(inp)
 
-        x_dict = self.tokenizer([inp_text], return_tensors='np', max_length=512, truncation=True)
+        x_dict = self.tokenizer([inp_text], return_tensors='pt' if self.use_cuda else 'np', max_length=512, truncation=True)
 
         x_dict['text'] = inp_text
         return x_dict
@@ -479,7 +293,7 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
     def get_decoder_input_ids(self, tgt_context_memory):
         with self.tokenizer.as_target_tokenizer():
             # We use :-1 to slice off the last token, which is the EOS token. -2 means slicing off SEP as well.
-            decoder_input_ids = self.tokenizer(tgt_context_memory, return_tensors='np', max_length=507).input_ids[:, :-1]
+            decoder_input_ids = self.tokenizer(tgt_context_memory, return_tensors='pt' if self.use_cuda else 'np', max_length=507).input_ids[:, :-1]
         return decoder_input_ids
 
     def get_target_tokenizer(self):
@@ -535,6 +349,7 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
             logger.debug(f'Warning: Input is longer than supported. May affect performance. Length: {x_dict["input_ids"].shape[1]}')
 
         start = datetime.now()
+
         outp = self.generate(
             input_ids=x_dict['input_ids'],
             attention_mask=x_dict['attention_mask'],
@@ -612,10 +427,22 @@ class MarianONNX(BaseONNXModel, GenerationMixinNumpy):
 
             last_layer_tgt_info = last_layer_tgt_info[beam_idx_to_use, :, :, :] # [num_heads, 1, src_len]
 
-            tgt_to_src_info = np.mean(last_layer_tgt_info, axis=0) # [1, src_len]
+            if self.use_cuda:
+                tgt_to_src_info = torch.mean(last_layer_tgt_info, dim=0)
+            else:
+                tgt_to_src_info = np.mean(last_layer_tgt_info, axis=0) # [1, src_len]
 
             tgt_to_src_pairs.append(tgt_to_src_info)
 
-        tgt_to_src_pairs = np.concatenate(tgt_to_src_pairs, axis=0) # [tgt_len, src_len]
+        if self.use_cuda:
+            tgt_to_src_pairs = torch.concat(tgt_to_src_pairs, dim=0)
+        else:
+            tgt_to_src_pairs = np.concatenate(tgt_to_src_pairs, axis=0) # [tgt_len, src_len]
 
         return tgt_to_src_pairs.tolist()
+
+class MarianONNXNumpy(BaseMarianONNX, GenerationMixinNumpy):
+    pass
+
+class MarianONNXTorch(BaseMarianONNX, GenerationMixin):
+    pass

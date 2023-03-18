@@ -4,7 +4,7 @@ import numpy as np
 
 from gandy.translation.kretrieval_translation import MTRetrieval, process_outputs_cb_for_kretrieval
 from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
-from gandy.onnx_models.marian import MarianONNX
+from gandy.onnx_models.marian import MarianONNXTorch, MarianONNXNumpy
 import logging
 
 logger = logging.getLogger('Gandy')
@@ -146,7 +146,12 @@ class GravesTranslationApp(Seq2SeqTranslationApp):
         logger.info('Loading translation model...')
         # Only the J model supports KNN for now.
         s = '/'
-        self.translation_model = MarianONNX(
+
+        if self.use_cuda:
+            model_cls = MarianONNXTorch
+        else:
+            model_cls = MarianONNXNumpy
+        self.translation_model = model_cls(
             f'models/marian{s}encoder_q.onnx',
             f'models/marian{s}decoder_q.onnx',
             f'models/marian{s}decoder_init_q.onnx',
