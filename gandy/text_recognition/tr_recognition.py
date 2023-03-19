@@ -5,7 +5,7 @@ from PIL.Image import Image
 from gandy.text_recognition.base_text_recognition import BaseTextRecognition
 import albumentations as A
 import numpy as np
-from gandy.onnx_models.tr_ocr import OnnxVision
+from gandy.onnx_models.tr_ocr import VisionONNXNumpy, VisionONNXTorch
 
 import logging
 logger = logging.getLogger('Gandy')
@@ -29,7 +29,13 @@ class TrOCRTextRecognitionApp(BaseTextRecognition):
         s = self.model_sub_path
 
         logger.info('Loading object recognition model...')
-        self.model = OnnxVision(
+
+        if self.use_cuda:
+            model_cls = VisionONNXTorch
+        else:
+            model_cls = VisionONNXNumpy
+
+        self.model = model_cls(
             f'models/minocr{s}encoder.onnx', f'models/minocr{s}decoder.onnx', f'models/minocr{s}decoder_init.onnx', f'models/minocr{s}proj.onnx' if self.has_proj else None,
             f'models/minocr{s}minocr_tokenizer', f'models/minocr{s}minocr_feature_extractor', f'models/minocr{s}minocr_config',
             use_cuda=self.use_cuda,

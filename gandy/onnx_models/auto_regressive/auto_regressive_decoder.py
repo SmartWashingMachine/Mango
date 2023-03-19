@@ -38,20 +38,20 @@ class OnnxArDecoder(OnnxArDecoderInit):
                     past_key_value.data_ptr(),
                 )
 
-    def prepare_io_binding(self, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values):
+    def prepare_io_binding(self, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values, has_cross_attentions = True):
         io_binding = self.decoder.io_binding()
 
         self.prepare_inputs(io_binding, input_ids, attention_mask, encoder_hidden_states=None, src_positions=None, past_key_values=past_key_values)
 
-        output_shapes, output_buffers = self.prepare_outputs(io_binding, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values)
+        output_shapes, output_buffers = self.prepare_outputs(io_binding, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values, has_cross_attentions=has_cross_attentions)
 
         return io_binding, output_shapes, output_buffers
 
-    def forward(self, input_ids, attention_mask, encoder_hidden_states, past_key_values, src_positions):
+    def forward(self, input_ids, attention_mask, encoder_hidden_states, past_key_values, src_positions, has_cross_attentions = True):
         flat_past_key_values = functools.reduce(operator.iconcat, past_key_values, [])
 
         if self.use_cuda:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask, encoder_hidden_states, src_positions, flat_past_key_values)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, attention_mask, encoder_hidden_states, src_positions, flat_past_key_values, has_cross_attentions=has_cross_attentions)
 
             io_binding.synchronize_inputs()
             self.decoder.run_with_iobinding(io_binding)
@@ -89,15 +89,25 @@ class OnnxArDecoder(OnnxArDecoderInit):
             ]
 
             decoder_inputs = dict(zip(input_names, inputs))
+
             decoder_outputs = self.decoder.run(None, decoder_inputs)
 
         hidden_states = [decoder_outputs[1]]
-        cross_attentions = [decoder_outputs[2]]
-        pkvs = []
-        for x in decoder_outputs[3:]:
-            if x.shape[2] == 512: # TODO: Filler code may not be needed anymore
-                continue
-            pkvs.append(x)
+
+        if has_cross_attentions:
+            cross_attentions = [decoder_outputs[2]]
+            pkvs = []
+            for x in decoder_outputs[3:]:
+                if x.shape[2] == 512: # TODO: Filler code may not be needed anymore
+                    continue
+                pkvs.append(x)
+        else:
+            cross_attentions = []
+            pkvs = []
+            for x in decoder_outputs[1:]:
+                if x.shape[2] == 512: # TODO: Filler code may not be needed anymore
+                    continue
+                pkvs.append(x)
     
         list_pkv = tuple(x for x in pkvs)
         out_past_key_values = tuple(

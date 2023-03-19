@@ -55,6 +55,12 @@ class BaseMtBigONNX(BaseMarianONNX):
         self.tokenizer = MtBigTokenizer.from_pretrained(tokenizer_path + '_ja', truncation_side='left', padding_side='right')
         self.en_tokenizer = MtBigTokenizer.from_pretrained(tokenizer_path + '_en', truncation_side='left', padding_side='right')
 
+    def mc(self, tensor):
+        if tensor is not None and self.use_cuda:
+            return tensor.contiguous()
+        else:
+            return tensor
+
     def forward(
         self,
         input_ids=None,
@@ -83,6 +89,22 @@ class BaseMtBigONNX(BaseMarianONNX):
             )
 
         encoder_hidden_states = encoder_outputs[0]
+
+        decoder_input_ids = self.mc(decoder_input_ids)
+        input_ids = self.mc(input_ids)
+        attention_mask = self.mc(attention_mask)
+        decoder_attention_mask = self.mc(decoder_attention_mask)
+        head_mask = self.mc(head_mask)
+        decoder_head_mask = self.mc(decoder_head_mask)
+        encoder_outputs = self.mc(encoder_hidden_states)
+        inputs_embeds = self.mc(inputs_embeds)
+        decoder_inputs_embeds = self.mc(decoder_inputs_embeds)
+        if past_key_values is not None:
+            for p in past_key_values:
+                if p is None:
+                    continue
+                for q in p:
+                    q = self.mc(q)
 
         if past_key_values is None:
             # runs only for the first time:

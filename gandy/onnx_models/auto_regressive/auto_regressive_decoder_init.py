@@ -24,8 +24,8 @@ class OnnxArDecoderInit():
         self.config = config
 
     def prepare_pkv_buffer(self, batch_size: int, sequence_length = None, encoder_sequence_length = None, past_sequence_length = None, is_self_attn = False):
-        num_heads = self.config.decoder_attention_heads
-        hidden_size = self.config.d_model
+        num_heads = self.config.decoder_attention_heads if hasattr(self.config, 'decoder_attention_heads') else self.config.decoder.num_attention_heads
+        hidden_size = self.config.d_model if hasattr(self.config, 'd_model') else self.config.decoder.hidden_size
         embed_size_per_head = hidden_size // num_heads
         if is_self_attn:
             if past_sequence_length is not None:
@@ -140,9 +140,8 @@ class OnnxArDecoderInit():
         # Bind all outputs.
         bsz = input_ids.size(0)
         seq_length = input_ids.size(1)
-        vocab_size = self.config.decoder_vocab_size
-        hid_size = self.config.d_model
-        num_heads = self.config.decoder_attention_heads
+        vocab_size = self.config.decoder_vocab_size if hasattr(self.config, 'decoder_vocab_size') else self.config.vocab_size
+        num_heads = self.config.decoder_attention_heads if hasattr(self.config, 'decoder_attention_heads') else self.config.decoder.num_attention_heads
 
         logits_shape = (bsz, seq_length, vocab_size)
         logits_buffer = torch.empty(np.prod(logits_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
@@ -158,20 +157,23 @@ class OnnxArDecoderInit():
         output_shapes = {'logits': logits_shape}
         output_buffers = {'logits': logits_buffer}
 
-        # Hidden state for KNN
-        decoder_hidden_state_shape = (bsz, seq_length, hid_size)
-        decoder_hidden_state_buffer = torch.empty(np.prod(decoder_hidden_state_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
-        io_binding.bind_output(
-            'decoder_hidden_states',
-            decoder_hidden_state_buffer.device.type,
-            DEVICE_ID,
-            np.float32,
-            decoder_hidden_state_shape,
-            decoder_hidden_state_buffer.data_ptr(),
-        )
+        if has_cross_attentions:
+            hid_size = self.config.d_model
 
-        output_buffers['decoder_hidden_state'] = decoder_hidden_state_buffer
-        output_shapes['decoder_hidden_state'] = decoder_hidden_state_shape
+            # Hidden state for KNN
+            decoder_hidden_state_shape = (bsz, seq_length, hid_size)
+            decoder_hidden_state_buffer = torch.empty(np.prod(decoder_hidden_state_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
+            io_binding.bind_output(
+                'decoder_hidden_states',
+                decoder_hidden_state_buffer.device.type,
+                DEVICE_ID,
+                np.float32,
+                decoder_hidden_state_shape,
+                decoder_hidden_state_buffer.data_ptr(),
+            )
+
+            output_buffers['decoder_hidden_state'] = decoder_hidden_state_buffer
+            output_shapes['decoder_hidden_state'] = decoder_hidden_state_shape
 
         if has_cross_attentions:
             # Cross attention for visualization.
@@ -198,18 +200,18 @@ class OnnxArDecoderInit():
 
         return output_shapes, output_buffers
 
-    def prepare_io_binding(self, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values):
+    def prepare_io_binding(self, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values, has_cross_attentions = True):
         io_binding = self.decoder.io_binding()
 
         self.prepare_inputs(io_binding, input_ids, attention_mask, encoder_hidden_states, src_positions)
 
-        output_shapes, output_buffers = self.prepare_outputs(io_binding, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values)
+        output_shapes, output_buffers = self.prepare_outputs(io_binding, input_ids, attention_mask, encoder_hidden_states, src_positions, past_key_values, has_cross_attentions=has_cross_attentions)
 
         return io_binding, output_shapes, output_buffers
 
-    def forward(self, input_ids, encoder_attention_mask, encoder_hidden_states, src_positions):
+    def forward(self, input_ids, encoder_attention_mask, encoder_hidden_states, src_positions, has_cross_attentions = True):
         if self.use_cuda:
-            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, encoder_attention_mask, encoder_hidden_states, src_positions, past_key_values=None)
+            io_binding, output_shapes, output_buffers = self.prepare_io_binding(input_ids, encoder_attention_mask, encoder_hidden_states, src_positions, past_key_values=None, has_cross_attentions=has_cross_attentions)
 
             io_binding.synchronize_inputs()
             self.decoder.run_with_iobinding(io_binding)
@@ -247,12 +249,22 @@ class OnnxArDecoderInit():
             )
 
         hidden_states = [decoder_outputs[1]]
-        cross_attentions = [decoder_outputs[2]]
-        pkvs = []
-        for x in decoder_outputs[3:]:
-            if x.shape[2] == 512:
-                continue
-            pkvs.append(x)
+
+        if has_cross_attentions:
+            cross_attentions = [decoder_outputs[2]]
+            pkvs = []
+            for x in decoder_outputs[3:]:
+                if x.shape[2] == 512:
+                    continue
+                pkvs.append(x)
+        else:
+            # TODO: has_cross_attentions should really be clarified as it also ignores hidden state outputs - it's just for the OCR models.
+            cross_attentions = []
+            pkvs = []
+            for x in decoder_outputs[1:]:
+                if x.shape[2] == 512:
+                    continue
+                pkvs.append(x)
     
         list_pkv = tuple(x for x in pkvs)
         out_past_key_values = tuple(
