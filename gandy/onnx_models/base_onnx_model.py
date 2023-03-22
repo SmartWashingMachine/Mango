@@ -30,8 +30,6 @@ class BaseONNXModel():
         options.intra_op_num_threads = 1
         options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_ALL
 
-        options.enable_mem_pattern = False
-
         # TODO right now the beam search models are unoptimized, leading to a lot of warning messages. Will fix later. - 27 years ago
         # options.log_severity_level = 0
         options.log_severity_level = 3
@@ -40,7 +38,7 @@ class BaseONNXModel():
         # Note that it's not actually CUDA - changed it to DirectML since installing cudNN is going to be a MAJOR PAIN IN THE *** for most end users.
         if self.use_cuda:
             logger.info('CUDA enabled. Will try to use DirectML if allowed.')
-            provider = ['DmlExecutionProvider', 'CPUExecutionProvider']
+            provider = ['CUDAExecutionProvider', 'CPUExecutionProvider']
         else:
             logger.info('CUDA disabled. Will only use CPU.')
             provider = ['CPUExecutionProvider']

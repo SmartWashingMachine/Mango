@@ -259,16 +259,16 @@ class BaseMarianONNX(BaseONNXModel):
             raise RuntimeError('use_cuda must be True or False.')
 
         options = SessionOptions()
+
         options.intra_op_num_threads = 2
         options.execution_mode = ExecutionMode.ORT_SEQUENTIAL
         options.graph_optimization_level = GraphOptimizationLevel.ORT_ENABLE_ALL
 
-        if self.use_cuda:
-            options.enable_mem_pattern = False
+        #options.log_severity_level = 0
 
         if self.use_cuda:
-            logger.info('CUDA enabled. Will try to use DirectML if allowed.')
-            provider = ['DmlExecutionProvider', 'CPUExecutionProvider']
+            logger.info('CUDA enabled. Will try to use CUDA if allowed.')
+            provider = ['CUDAExecutionProvider', 'CPUExecutionProvider']
         else:
             logger.info('CUDA disabled. Will only use CPU.')
             provider = ['CPUExecutionProvider']
@@ -350,6 +350,10 @@ class BaseMarianONNX(BaseONNXModel):
 
         start = datetime.now()
 
+        if self.use_cuda:
+            x_dict['input_ids'] = x_dict['input_ids'].to('cuda:0')
+            x_dict['attention_mask'] = x_dict['attention_mask'].to('cuda:0')
+
         outp = self.generate(
             input_ids=x_dict['input_ids'],
             attention_mask=x_dict['attention_mask'],
@@ -391,6 +395,7 @@ class BaseMarianONNX(BaseONNXModel):
     def postprocess(self, outp_data):
         seq, attentions, source_tokens_np = outp_data
         decoded = self.get_target_tokenizer().decode(seq[0, ...], skip_special_tokens=False)
+        logger.debug(f'Translated: {decoded}')
 
         if attentions is not None:
             # Reference [0] since batch size == 1

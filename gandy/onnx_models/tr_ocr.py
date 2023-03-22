@@ -112,6 +112,8 @@ class BaseVisionONNX(BaseONNXModel):
         return pixel_values
 
     def begin_forward(self, pixel_values):
+        if self.use_cuda:
+            pixel_values = pixel_values.to('cuda:0')
         outp = self.generate(
             pixel_values,
             no_repeat_ngram_size=12, # TODO: Change at some point to a better value.
@@ -140,7 +142,7 @@ class BaseVisionONNX(BaseONNXModel):
             # if model is used as a decoder in encoder-decoder model, the decoder attention mask is created on the fly
             if attention_mask is None:
                 if self.use_cuda:
-                    attention_mask = input_ids.new_ones(input_shape)
+                    attention_mask = input_ids.new_ones(input_shape).to('cuda:0')
                 else:
                     attention_mask = np.ones(input_shape)
 
@@ -180,7 +182,7 @@ class BaseVisionONNX(BaseONNXModel):
 
     @property
     def device(self):
-        return "cpu"
+        return 'cuda:0' if self.use_cuda else 'cpu'
 
     def get_encoder(self):
         return self.encoder
@@ -256,7 +258,7 @@ class BaseVisionONNX(BaseONNXModel):
             logits, past_key_values, _, __ = init_decoder_outputs
         else:
             if self.use_cuda:
-                encoder_attention_mask = torch.ones((encoder_hidden_states.shape[0], encoder_hidden_states.shape[1]), dtype=torch.int64)
+                encoder_attention_mask = torch.ones((encoder_hidden_states.shape[0], encoder_hidden_states.shape[1]), dtype=torch.int64).to('cuda:0')
             else:
                 encoder_attention_mask = np.ones((encoder_hidden_states.shape[0], encoder_hidden_states.shape[1]), dtype=np.int64)
 

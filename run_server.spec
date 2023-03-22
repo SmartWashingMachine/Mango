@@ -30,14 +30,14 @@ a = Analysis(
         'tqdm',
         'unidic_lite',
         'fugashi',
+        'pytorch',
+        'torch',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'pytorch',
-        'torch',
-        'torchvision'
+
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,

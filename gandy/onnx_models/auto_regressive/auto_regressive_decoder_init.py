@@ -161,11 +161,13 @@ class OnnxArDecoderInit():
             hid_size = self.config.d_model
 
             # Hidden state for KNN
+            # Hidden states should output on CPU since we need it for faiss-cpu checks. Hidden states itself isn't fed back to the model.
+            # TODO: Do this for cross attention and others?
             decoder_hidden_state_shape = (bsz, seq_length, hid_size)
-            decoder_hidden_state_buffer = torch.empty(np.prod(decoder_hidden_state_shape), dtype=torch.float32, device=DEVICE_TO_USE).contiguous()
+            decoder_hidden_state_buffer = torch.empty(np.prod(decoder_hidden_state_shape), dtype=torch.float32, device='cpu').contiguous()
             io_binding.bind_output(
                 'decoder_hidden_states',
-                decoder_hidden_state_buffer.device.type,
+                'cpu',
                 DEVICE_ID,
                 np.float32,
                 decoder_hidden_state_shape,

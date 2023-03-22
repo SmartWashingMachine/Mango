@@ -7,27 +7,43 @@ from gandy.translation.seq2seq_translation import Seq2SeqTranslationApp
 from gandy.onnx_models.marian import MarianONNXTorch, MarianONNXNumpy
 import logging
 
+# TODO: Maybe only save to cache after the sentence itself is done?
+
 logger = logging.getLogger('Gandy')
+
+try:
+    import torch
+except:
+    pass
 
 def process_outputs_cb_for_graves(mt_retrieval, cache_retrieval, outputs):
     # The graves caching will be conditioned on the KRetrieval augmented distribution,
     outputs = process_outputs_cb_for_kretrieval(mt_retrieval, outputs)
 
-    last_logits = outputs.logits[:, -1, :]
-    last_hidden = outputs.decoder_hidden_states[-1][0][0]
+    # ? DEV TODO last_hidden = outputs.decoder_hidden_states[-1][0][0]
+    last_hiddens_all = outputs.decoder_hidden_states[-1][:, -1, :] # [beam, 512(hid)]
     # Save current for future.
-    cache_retrieval.prepare_translation_output(key=last_hidden)
 
-    item_distances, item_values = cache_retrieval.retrieve_items_from_cache(last_hidden)
+    n_beams = last_hiddens_all.shape[0]
+    for beam_idx in range(n_beams):
+        last_hidden = last_hiddens_all[beam_idx, :] # [512]
+        last_logits = outputs.logits[beam_idx, -1, :]
 
-    if len(item_values) == 0:
-        return outputs
+        greedy_tok = outputs.logits[beam_idx, -1, :].argmax(axis=-1)
 
-    cache_representations = cache_retrieval.compute_cache_prob(item_distances, item_values, last_logits)
-    fused_representation = cache_retrieval.fuse_probs(last_logits, cache_representations)
+        cache_retrieval.prepare_translation_output(key=last_hidden, value=greedy_tok) # TODO: Don't just use greedy search.
+        cache_retrieval.end_prepared()
 
-    # The CB must modify in-place.
-    outputs.logits[:, -1, :] = fused_representation
+        item_distances, item_values = cache_retrieval.retrieve_items_from_cache(last_hidden)
+
+        if len(item_values) == 0:
+            return outputs
+
+        cache_representations = cache_retrieval.compute_cache_prob(item_distances, item_values, last_logits)
+        fused_representation = cache_retrieval.fuse_probs(last_logits, cache_representations)
+
+        # The CB must modify in-place.
+        outputs.logits[beam_idx, -1, :] = fused_representation
     return outputs
 
 class GravesCaching():
@@ -59,11 +75,18 @@ class GravesCaching():
             new_dist = d * temperature
             new_distances.append(new_dist)
 
-        new_distances = np.array(new_distances)
+        if isinstance(mt_dist, np.ndarray):
+            new_distances = np.array(new_distances)
 
-        normalized = softmax(new_distances, axis=0)
+            normalized = softmax(new_distances, axis=0)
 
-        knn_dist = np.zeros_like(mt_dist)
+            knn_dist = np.zeros_like(mt_dist)
+        else:
+            new_distances = np.array(new_distances)
+
+            normalized = softmax(new_distances, axis=0)
+
+            knn_dist = torch.zeros_like(mt_dist, device='cuda:0', dtype=mt_dist.dtype)
 
         # Aggregate over multiple instances of the same target token:
         for i in range(len(values)):
@@ -89,8 +112,11 @@ class GravesCaching():
         distances = [] # Distances are computed with the dot product.
         values = []
         for (k, v) in self.queue:
-            # Old: dot_dist = torch.dot(decoder_final_hidden_states, k)
-            dot_dist = np.dot(decoder_final_hidden_states, k)
+
+            if isinstance(decoder_final_hidden_states, np.ndarray):
+                dot_dist = np.dot(decoder_final_hidden_states, k)
+            else:
+                dot_dist = torch.dot(decoder_final_hidden_states, k)
 
             distances.append(dot_dist)
             values.append(v)
@@ -109,6 +135,7 @@ class GravesCaching():
             self._prepared_values.append(value)
 
     def end_prepared(self):
+        assert len(self._prepared_keys) == len(self._prepared_values), print(f'{len(self._prepared_keys)} != {len(self._prepared_values)}')
         zipped = zip(self._prepared_keys, self._prepared_values)
 
         for (k, v) in zipped:
@@ -152,9 +179,9 @@ class GravesTranslationApp(Seq2SeqTranslationApp):
         else:
             model_cls = MarianONNXNumpy
         self.translation_model = model_cls(
-            f'models/marian{s}encoder_q.onnx',
-            f'models/marian{s}decoder_q.onnx',
-            f'models/marian{s}decoder_init_q.onnx',
+            f'models/marian{s}encoder.onnx',
+            f'models/marian{s}decoder.onnx',
+            f'models/marian{s}decoder_init.onnx',
             f'models/marian{s}tokenizer_mt',
             process_outputs_cb=lambda x: process_outputs_cb_for_graves(self.mt_retrieval, self.graves_retrieval, x),
             use_cuda=self.use_cuda,

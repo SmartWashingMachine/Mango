@@ -5,6 +5,11 @@ from gandy.onnx_models.marian import MarianONNXNumpy, MarianONNXTorch
 import logging
 import faiss
 
+try:
+    import torch
+except:
+    pass
+
 logger = logging.getLogger('Gandy')
 
 def process_outputs_cb_for_kretrieval(mt_retrieval, outputs):
@@ -59,11 +64,19 @@ class MTRetrieval():
             new_dist /= temperature
             new_neighbor_distances.append(new_dist)
 
-        new_neighbor_distances = np.array(new_neighbor_distances)
+        if isinstance(mt_dist, np.ndarray):
+            new_neighbor_distances = np.array(new_neighbor_distances)
+            knn_dist = np.zeros_like(mt_dist) # vocab_size
 
-        normalized = softmax(new_neighbor_distances, axis=0)
+            normalized = softmax(new_neighbor_distances, axis=0)
+        else:
+            #new_neighbor_distances = torch.tensor(new_neighbor_distances, device='cuda:0', dtype=torch.float32)
+            knn_dist = torch.zeros_like(mt_dist, device='cuda:0', dtype=mt_dist.dtype) # vocab_size
 
-        knn_dist = np.zeros_like(mt_dist) # vocab_size
+            new_neighbor_distances = np.array(new_neighbor_distances)
+            #new_neighbor_distances = new_neighbor_distances.cpu().numpy()
+            normalized = softmax(new_neighbor_distances, axis=0)
+            #normalized = torch.softmax(new_neighbor_distances, dim=0)
 
         # Aggregate over multiple instances of the same target token:
         for i in range(len(neighbor_values)):
@@ -104,7 +117,10 @@ class MTRetrieval():
         """
         # start = datetime.now()
 
-        neighbor_distances, neighbor_indices = self.datastore_hidden_index.search(decoder_final_hidden_states[None, ...], k=self.get_k_value())
+        neighbor_distances, neighbor_indices = self.datastore_hidden_index.search(
+            decoder_final_hidden_states[None, ...] if isinstance(decoder_final_hidden_states, np.ndarray) else decoder_final_hidden_states.unsqueeze(dim=0),
+            k=self.get_k_value()
+        )
         neighbor_distances = neighbor_distances[0, ...] # Resqueeze.
         neighbor_indices = neighbor_indices[0, ...]
 
@@ -151,10 +167,12 @@ class KRetrievalTranslationApp(Seq2SeqTranslationApp):
             model_cls = MarianONNXTorch
         else:
             model_cls = MarianONNXNumpy
+
+        # KNN requires unquantized models to work properly.
         self.translation_model = model_cls(
-            f'models/marian{s}encoder_q.onnx',
-            f'models/marian{s}decoder_q.onnx',
-            f'models/marian{s}decoder_init_q.onnx',
+            f'models/marian{s}encoder.onnx',
+            f'models/marian{s}decoder.onnx',
+            f'models/marian{s}decoder_init.onnx',
             f'models/marian{s}tokenizer_mt',
             process_outputs_cb=lambda x: process_outputs_cb_for_kretrieval(self.mt_retrieval, x),
             use_cuda=self.use_cuda,
