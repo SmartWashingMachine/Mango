@@ -7,10 +7,12 @@ from gandy.image_cleaning.tnet_image_clean import TNetImageClean
 from gandy.image_cleaning.tnet_edge_image_clean import TNetEdgeImageClean
 from gandy.image_cleaning.blur_image_clean import BlurImageCleanApp
 from gandy.image_cleaning.blur_and_mask_image_clean import BlurMaskImageCleanApp
+from gandy.image_cleaning.text_fill_clean import TextFillCleanApp
 from gandy.image_redrawing.amg_convert import AMGConvertApp
 from gandy.image_redrawing.image_redraw_v2 import ImageRedrawV2App
 from gandy.image_redrawing.neighbor_redraw import NeighborRedrawApp
 from gandy.image_redrawing.image_redraw_global import ImageRedrawGlobalApp
+from gandy.image_redrawing.image_redraw_big_global import ImageRedrawBigGlobalApp
 from gandy.text_detection.detrg_image_detection import DETRGBigImageDetectionApp, DETRVnImageDetectionApp
 from gandy.text_detection.rcnn_image_detection import ResNetImageDetectionApp
 from gandy.text_recognition.tr_recognition import TrOCRTextRecognitionApp
@@ -83,6 +85,7 @@ class AdvancedPipeline(BasePipeline):
                     TNetEdgeImageClean(),
                     BlurImageCleanApp(),
                     BlurMaskImageCleanApp(),
+                    TextFillCleanApp(),
                 ],
                 app_names=[
                     'none',
@@ -92,6 +95,7 @@ class AdvancedPipeline(BasePipeline):
                     'edge_connect',
                     'blur',
                     'blur_mask',
+                    'text_clean',
                 ],
                 # default_idx=1,
             ),
@@ -101,12 +105,14 @@ class AdvancedPipeline(BasePipeline):
                     NeighborRedrawApp(),
                     ImageRedrawV2App(),
                     ImageRedrawGlobalApp(),
+                    ImageRedrawBigGlobalApp(),
                 ],
                 app_names=[
                     'amg_convert',
                     'neighbor',
                     'simple',
                     'global',
+                    'big_global',
                 ],
                 # default_idx=-1
             ),
