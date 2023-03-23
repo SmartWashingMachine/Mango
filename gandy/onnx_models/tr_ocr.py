@@ -13,7 +13,6 @@ from gandy.utils.knn_utils.modeling_outputs import (
     BaseModelOutput,
 )
 from gandy.utils.knn_utils.generation_mixin import GenerationMixinNumpy
-from transformers.generation_utils import GenerationMixin
 from onnxruntime import (
     GraphOptimizationLevel,
     InferenceSession,
@@ -27,8 +26,9 @@ import numpy as np
 
 try:
     import torch
+    from transformers.generation_utils import GenerationMixin
 except:
-    pass
+    from gandy.utils.stub_generation_mixin import GenerationMixin
 
 class OnnxVisionProj():
     def __init__(self, proj_sess):

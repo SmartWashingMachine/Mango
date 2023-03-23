@@ -8,8 +8,13 @@ import copy
 from gandy.onnx_models.auto_regressive.auto_regressive_decoder import OnnxArDecoder
 from gandy.onnx_models.auto_regressive.auto_regressive_decoder_init import OnnxArDecoderInit
 from gandy.onnx_models.auto_regressive.auto_regressive_encoder import OnnxArEncoder
-from transformers.generation_utils import GenerationMixin
 from gandy.utils.knn_utils.generation_mixin import GenerationMixinNumpy
+
+try:
+    import torch
+    from transformers.generation_utils import GenerationMixin
+except:
+    from gandy.utils.stub_generation_mixin import GenerationMixin
 
 class BigEncoder(OnnxArEncoder):
 

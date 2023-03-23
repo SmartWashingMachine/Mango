@@ -20,7 +20,6 @@ import numpy as np
 import logging
 from gandy.utils.clean_text import clean_text
 
-from transformers.generation_utils import GenerationMixin
 from gandy.onnx_models.auto_regressive.auto_regressive_decoder import OnnxArDecoder
 from gandy.onnx_models.auto_regressive.auto_regressive_decoder_init import OnnxArDecoderInit
 from gandy.onnx_models.auto_regressive.auto_regressive_encoder import OnnxArEncoder
@@ -29,8 +28,9 @@ logger = logging.getLogger('Gandy')
 
 try:
     import torch
+    from transformers.generation_utils import GenerationMixin
 except:
-    pass
+    from gandy.utils.stub_generation_mixin import GenerationMixin
 
 class BaseMarianONNX(BaseONNXModel):
     def __init__(self, onnx_path_enc, onnx_path_dec, onnx_path_dec_init, dataloader_path, process_outputs_cb = None, use_cuda = None, max_length_a = 0):
