@@ -21,7 +21,7 @@
 
 **Mango-Mandy+Gandy** is a fully automated tool to machine translate text, manga, games, and ebooks. It comes with a bunch of models tuned in house as well as a basic UI to easily use them.
 
-:warning: CURRENTLY IN ALPHA - Expect a bunch of bugs and just general unwieldiness. :warning:
+:warning: CURRENTLY IN BETA - Expect a bunch of bugs and just general unwieldiness. :warning:
 
 # What can this app do?
 
@@ -41,26 +41,25 @@ Lastly, all of these models were trained or tuned by me, and I'll probably conti
 
 1. A decent CPU and ~4gb RAM.
 2. Windows 10 or higher (may work with older windows. Not sure.)
-3. ImageMagick
 
 # How do I install this?
 
-1. Install ImageMagick.
-2. Download the prebuilt Mango application [here](https://github.com/SmartWashingMachine/Gandy/releases/).
-3. Download the "Jap2Eng Starter" model pack [here](https://drive.google.com/file/d/1_-q9tCBvpH9oNrVD0w_p7TXtEgB4Yo_R/view?usp=share_link), and drag the "models" folder to the same folder that Mango.exe is located in. If you want more functionality, download some of the model packs below.
-4. Run mango.exe!
+1. Download the prebuilt Mango application [here](https://github.com/SmartWashingMachine/Gandy/releases/).
+2. Download the "Jap2Eng Starter" model pack [here]([https://drive.google.com/file/d/1wvzWXpFCO728DsONJUknKng4hjgnByNH/view?usp=share_link](https://drive.google.com/file/d/1GjtzG06j7bEBuaR3AwXURXENxvsfjBEy/view?usp=share_link)), and drag the "models" folder to the same folder that Mango.exe is located in. If you want more functionality, download some of the model packs below.
+3. Run mango.exe!
 
 *Models will not work if the corresponding model pack is not installed.*
 
 # Model packs for installation
 
-- [Jap2Eng Starter](https://drive.google.com/file/d/1_-q9tCBvpH9oNrVD0w_p7TXtEgB4Yo_R/view?usp=share_link) - Only supports base Japanese to English translation. Only allows the DETRG text detection model (default models). **At minimum, you need this package.**
-- [Chinese Lite](https://drive.google.com/file/d/10nse2-1Tp-Hv4PIFHtGaRH0n3G_9cDbQ/view?usp=share_link) - Adds support for Chinese translation.
-- [Korean Lite](https://drive.google.com/file/d/1JjiATtHGdnJzUU2Q_xK6hgJu6y6Tq-oO/view?usp=share_link) - Adds support for Korean translation.
+- [Jap2Eng Starter](https://drive.google.com/file/d/1wvzWXpFCO728DsONJUknKng4hjgnByNH/view?usp=share_link) - Only supports base Japanese to English translation. Only allows the DETRG text detection model (default models). **At minimum, you need this package.**
+- [Chinese Lite](https://drive.google.com/file/d/1NA5pcZtJo8kgd60THpf0ur_sXLC7z8WC/view?usp=share_link) - Adds support for Chinese to English translation.
+- [Korean Lite](https://drive.google.com/file/d/1QMkhARX_4faxiOsvky0beam_HWuN9394/view?usp=share_link) - Adds support for Korean to English translation.
 - [Text Things](https://drive.google.com/file/d/1bap2jNkXNwM01MXYlzwypIKzgAc0fv-3/view?usp=share_link) - Adds support for RCNN and DETR-VN text detection models.
 - [Inpainting](https://drive.google.com/file/d/1BCq9CHgwprcF9syPDltX2w7nwYKV28d4/view?usp=share_link) - Adds support for AI inpainting. Experimental.
 - [DocRepair](https://drive.google.com/file/d/1mWtpRRxPZ_JyiKfJ6yWm5-2ljed7g_ES/view?usp=share_link) - Adds support for DocRepair. Experimental.
-- [Jap2Eng Neighbor](https://drive.google.com/file/d/1WMbErEy5vbkqU46LrpsJ_81J_cjjgnsI/view?usp=share_link) - Adds a stronger translation model.
+- [Jap2Eng Neighbor](https://drive.google.com/file/d/1B0fMJ7bHVfgHYuQu9ssGtUoYge_rJDzY/view?usp=share_link) - Adds a stronger translation model.
+- (CUDA PATCH COMING SOON)
 
 To install a package, simply unzip the file and drag the "models" folder to the same folder that mango.exe is located in.
 
@@ -80,17 +79,12 @@ These include:
 
 # What's the catch?
 
-Mango is currently in alpha and I'm only really working on this in my free time. Here are a few things to note and improve on in the future:
+Mango is currently in beta and I'm only really working on this in my free time. Here are a few things to note and improve on in the future:
 
-1. Does not support proper GPU usage yet. Attempting to use the GPU with DirectML will likely fail on most machines.
-2. Machine translation needs more work. Sometimes it overuses the contextual info. Need to somehow integrate speaker information. Also need to work on it's capability to translate names.
-3. Text detection is not as accurate as I'd like it to be. I don't have many images to train it with...
-4. Image inpainting is very basic right now.
-5. Can be a pain to install.
-6. Buggy.
-7. Chinese-English and Korean-English models are still very limited.
-8. Code is messy. I'll clean it up in the future... maybe. Technical debt is real.
-9. Disable full logging. Will disable once I fix a few more bugs.
+1. Machine translation needs more work. Sometimes it overuses the contextual info. Need to somehow integrate speaker information. Also need to work on it's capability to translate names.
+2. Image inpainting is very basic right now.
+3. Chinese-English and Korean-English models are still very limited.
+4. Disable full logging. Will disable once I fix a few more bugs.
 
 # Where are the output files saved?
 
@@ -127,5 +121,7 @@ All output files (translated books, saved backlog text files, and translated ima
 [On Layer Normalizations and Residual Connections in Transformers](https://arxiv.org/abs/2206.00330) - Not strictly necessary with the current model setup, but it gives peace of mind.
 
 [DocRepair](https://arxiv.org/abs/1909.01383) - Sometimes it works really well and sometimes it fails horribly, but either way it's really cool. CADec gave me nightmares.
+
+[Neural Machine Translation with Reordering Embeddings](https://aclanthology.org/P19-1174/) - Still testing this out but so far it's giving slightly better results. The best part about having more parameters is that it almost never fails.
 
 *And many others...*
